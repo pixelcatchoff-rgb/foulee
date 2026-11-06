@@ -207,6 +207,27 @@ function stepsHTML(items) {
   }).join('')}</ol>`;
 }
 
+// Saisie d'un temps en deux cases (minutes, secondes) : le clavier numérique de l'iPhone n'a pas de « : ».
+function timeField(name, label, sec) {
+  const m = sec ? Math.floor(sec / 60) : '';
+  const s = sec ? String(sec % 60).padStart(2, '0') : '';
+  return `
+    <div class="field" role="group" aria-label="${label}">
+      <span>${label}</span>
+      <div class="time-pair">
+      <span class="unit-input"><input name="${name}_m" inputmode="numeric" pattern="[0-9]*" maxlength="3" autocomplete="off" aria-label="${label}, minutes" value="${m}"><em>min</em></span>
+      <span class="unit-input"><input name="${name}_s" inputmode="numeric" pattern="[0-9]*" maxlength="2" autocomplete="off" aria-label="${label}, secondes" value="${s}"><em>s</em></span>
+      </div>
+    </div>`;
+}
+
+function readTime(fd, name) {
+  const m = parseInt(fd.get(`${name}_m`), 10);
+  const s = parseInt(fd.get(`${name}_s`), 10);
+  if (!Number.isFinite(m) && !Number.isFinite(s)) return null;
+  return (Number.isFinite(m) ? m : 0) * 60 + Math.min(59, Number.isFinite(s) ? s : 0);
+}
+
 function viewSession(id) {
   const s = findSession(id);
   if (!s) return `<p class="lede">Cette séance n’existe pas. <a href="#/programme">Retour au programme</a></p>`;
@@ -236,12 +257,14 @@ function viewSession(id) {
 
     <form class="log" data-log="${s.id}">
       <h2 class="section-title">Mon compte rendu</h2>
+      <label class="field"><span>Date</span><input type="date" name="date" value="${esc(e.date || s.date)}"></label>
       <div class="field-row">
-        <label class="field"><span>Date</span><input type="date" name="date" value="${esc(e.date || s.date)}"></label>
-        <label class="field"><span>Durée</span><input name="duration" inputmode="numeric" placeholder="45:00" value="${e.duration ? clock(e.duration) : ''}"></label>
-        <label class="field"><span>Distance (km)</span><input name="distance" inputmode="decimal" placeholder="5,2" value="${e.distance ? String(e.distance).replace('.', ',') : ''}"></label>
+        ${timeField('duration', 'Durée', e.duration)}
+        <label class="field"><span>Distance</span>
+          <span class="unit-input"><input name="distance" inputmode="decimal" autocomplete="off" value="${e.distance ? String(e.distance).replace('.', ',') : ''}"><em>km</em></span>
+        </label>
       </div>
-      ${isTest ? `<label class="field"><span>Temps sur 3 km</span><input name="time3k" inputmode="numeric" placeholder="${clock(s.repere)}" value="${e.time3k ? clock(e.time3k) : ''}"></label>` : ''}
+      ${isTest ? timeField('time3k', 'Temps sur 3 km', e.time3k) : ''}
       <fieldset class="rpe">
         <legend>Ressenti, de 1 (très facile) à 10 (à fond)</legend>
         <div class="rpe-scale">
@@ -412,9 +435,9 @@ document.addEventListener('submit', (ev) => {
   const dist = parseFloat(String(fd.get('distance') || '').replace(',', '.'));
   store.save(form.dataset.log, {
     date: fd.get('date') || null,
-    duration: parseClock(fd.get('duration')),
+    duration: readTime(fd, 'duration'),
     distance: Number.isFinite(dist) ? dist : null,
-    time3k: parseClock(fd.get('time3k')),
+    time3k: readTime(fd, 'time3k'),
     rpe: fd.get('rpe') ? Number(fd.get('rpe')) : null,
     note: String(fd.get('note') || '').trim(),
   });

@@ -195,14 +195,28 @@ a { color: inherit; }
 
 /* ---------- Formulaire ---------- */
 .log { margin-top: 8px; }
-.field { display: grid; gap: 4px; margin-bottom: 12px; font-size: 14px; color: var(--ink-soft); }
+.field { display: grid; gap: 6px; margin: 0 0 14px; min-width: 0; font-size: 14px; color: var(--ink-soft); }
 .field input, .field textarea {
-  font: 500 17px/1.3 var(--font); color: var(--ink);
+  -webkit-appearance: none; appearance: none;
+  display: block; width: 100%; min-width: 0; min-height: 50px;
+  font: 500 18px/1.3 var(--font); color: var(--ink);
   background: var(--surface); border: 1.5px solid var(--line); border-radius: var(--radius-s);
-  padding: 10px 12px; width: 100%; min-height: 46px;
+  padding: 12px; margin: 0;
 }
+.field input[type="date"] { text-align: left; }
+.field input[type="date"]::-webkit-date-and-time-value { text-align: left; }
 .field input:focus, .field textarea:focus { border-color: var(--ink); outline: none; }
-.field-row { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 10px; align-items: end; }
+.field-row { display: grid; grid-template-columns: 1.35fr 1fr; gap: 12px; align-items: start; }
+
+/* Temps (min + s) et valeurs avec unité */
+.time-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.time-pair .unit-input input { padding-right: 34px; }
+.unit-input { position: relative; display: block; }
+.unit-input input { padding-right: 40px; font-variant-numeric: tabular-nums; }
+.unit-input em {
+  position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+  font-style: normal; font-size: 15px; color: var(--ink-soft); pointer-events: none;
+}
 .rpe { border: 0; padding: 0; margin: 0 0 12px; }
 .rpe legend { font-size: 14px; color: var(--ink-soft); margin-bottom: 6px; }
 .rpe-scale { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
@@ -267,7 +281,6 @@ a { color: inherit; }
   .toast { transition: none; }
 }
 @media (max-width: 380px) {
-  .field-row { grid-template-columns: 1fr 1fr; }
-  .field-row .field:first-child { grid-column: 1 / -1; }
+  .field-row { grid-template-columns: 1fr; }
   .step { grid-template-columns: 110px 1fr; }
 }
