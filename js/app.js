@@ -808,7 +808,14 @@ handleStravaCallback().then((r) => {
 });
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  navigator.serviceWorker.register('./sw.js');
+  // Nouvelle version disponible : elle s'installe et la page se recharge une fois
+  navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then((reg) => reg.update());
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloaded || document.querySelector('[data-live]')) return;
+    reloaded = true;
+    location.reload();
+  });
 }
 
 // Utilisé par les tests rapides dans la console

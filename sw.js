@@ -1,5 +1,5 @@
 // Fonctionne hors connexion : les fichiers de l'appli sont gardés en cache.
-const VERSION = 'foulee-1.4.1';
+const VERSION = 'foulee-1.4.2';
 const SHELL = [
   './',
   './index.html',
@@ -56,8 +56,9 @@ self.addEventListener('fetch', (e) => {
   if (url.origin !== location.origin) return;
 
   // Fichiers de l'appli : réseau d'abord (mises à jour), cache si hors ligne
+  // `no-cache` : on revalide toujours auprès de GitHub, pour recevoir les mises à jour tout de suite
   e.respondWith(
-    fetch(req)
+    fetch(req, { cache: 'no-cache' })
       .then((res) => {
         const copy = res.clone();
         caches.open(VERSION).then((c) => c.put(req, copy));
