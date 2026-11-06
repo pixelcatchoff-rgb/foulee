@@ -3,6 +3,12 @@ import { describe, watchGuide, totalTime } from './steps.js';
 import { viewTools, bindTools, DISTANCES } from './tools.js';
 import { viewAnalyse } from './analyse.js';
 import {
+  viewConseils, viewArticle, viewJourJ, sessionTipsHTML, todayTip, saveWeight,
+} from './conseils.js';
+import {
+  routinesList, viewRoutine, mountRoutine, unmountRoutine, handleRoutineClick, handleRoutineInput,
+} from './routines.js';
+import {
   viewParcours, mountParcours, unmountParcours, handleParcoursClick, handleParcoursInput,
 } from './parcours.js';
 import { sessionDistance } from './routes.js';
@@ -176,6 +182,7 @@ function viewToday() {
     ${hero}
     ${missed}
     ${hardNotice}
+    ${todayTip(s, ctx.t)}
     ${lane(ctx)}
     <dl class="stats">
       <div><dt>Séances faites</dt><dd>${ctx.doneCount}<small>/${ctx.sessions.length}</small></dd></div>
@@ -318,6 +325,7 @@ function viewSession(id) {
     </div>
     ${stepsHTML(describe(s.steps))}
     ${s.note ? `<p class="note">${esc(s.note)}</p>` : ''}
+    ${sessionTipsHTML(s)}
 
     <details class="watch">
       <summary>Programmer sur l’Apple Watch</summary>
@@ -398,6 +406,10 @@ function viewRunHub() {
         <span class="hub-title">Trouver un parcours</span>
         <span class="hub-text">${next ? `Trois boucles de ${kmNext} km autour de toi, ou de l’endroit choisi sur la carte.` : 'Trois boucles autour de toi, ou de l’endroit choisi sur la carte.'}</span>
       </a></li>
+      <li><a class="hub-card t-long" href="#/conseils">
+        <span class="hub-title">Conseils et routines</span>
+        <span class="hub-text">Alimentation, récupération, échauffement et renforcement guidés à la voix, guide du jour J.</span>
+      </a></li>
       <li><a class="hub-card t-goal" href="#/outils">
         <span class="hub-title">Calculateurs</span>
         <span class="hub-text">Allure, temps de passage, prédictions de chrono.</span>
@@ -467,7 +479,7 @@ function viewSettings() {
       <p>Efface ton programme, tes séances cochées et tes sorties importées. L’appli revient à zéro.</p>
       <button class="btn btn-ghost" data-reset>Effacer mes données</button>
     </section>
-    <p class="hint">Foulée, version 2.0</p>
+    <p class="hint">Foulée, version 2.1</p>
   `;
 }
 
@@ -480,6 +492,10 @@ const routes = [
   [/^#\/nouveau-programme$/, viewQuiz, 'plan'],
   [/^#\/analyse$/, viewAnalyseScreen, 'analyse'],
   [/^#\/course$/, viewRunHub, 'run'],
+  [/^#\/conseils$/, () => viewConseils(today(), routinesList()), 'run'],
+  [/^#\/conseil\/([\w-]+)$/, (id) => viewArticle(id), 'run'],
+  [/^#\/jour-j$/, () => viewJourJ(today()), 'run'],
+  [/^#\/routine\/([\w-]+)$/, (id) => viewRoutine(id), 'run'],
   [/^#\/outils$/, viewToolsScreen, 'run'],
   [/^#\/courir(?:\/([\w-]+))?$/, (sid) => viewLive(sid), 'run'],
   [/^#\/parcours(?:\/([\w-]+))?$/, (sid) => viewParcours(sid), 'run'],
@@ -494,12 +510,14 @@ function render() {
     const m = hash.match(re);
     if (m) {
       // Les formulaires vivants ne se redessinent pas à chaque sauvegarde (on garderait le clavier ouvert).
-      if (hash === lastHash && $view.querySelector('[data-tool], [data-quiz], [data-live], [data-parcours]')) return;
+      if (hash === lastHash && $view.querySelector('[data-tool], [data-quiz], [data-live], [data-parcours], [data-routine], [data-weight]')) return;
+      if ($view.querySelector('[data-routine]')) unmountRoutine();
       if ($view.querySelector('[data-live]')) unmountLive();
       if ($view.querySelector('[data-parcours]')) unmountParcours();
       $view.innerHTML = view(...m.slice(1));
       if ($view.querySelector('[data-live]')) mountLive($view.querySelector('[data-live]'));
       if ($view.querySelector('[data-parcours]')) mountParcours($view.querySelector('[data-parcours]'));
+      if ($view.querySelector('[data-routine]')) mountRoutine($view.querySelector('[data-routine]'));
       if (hash.startsWith('#/sortie/')) mountActivity($view, decodeURIComponent(m[1]));
       if ($view.querySelector('[data-tool]')) bindTools($view, (patch) => store.saveTools(patch));
       $nav.querySelectorAll('a').forEach((a) => a.toggleAttribute('aria-current', a.dataset.tab === tab));
@@ -538,6 +556,7 @@ function toast(msg) {
 document.addEventListener('click', (ev) => {
   if (handleParcoursClick(ev, $view.querySelector('[data-parcours]'))) return;
   if (handleQuizClick(ev, $view.querySelector('[data-quiz]'))) return;
+  if (handleRoutineClick(ev, $view.querySelector('[data-routine]'))) return;
   const t = ev.target.closest('[data-toggle],[data-quickdone],[data-clear],[data-export],[data-reset],[data-back],[data-strava-connect],[data-strava-sync],[data-strava-disconnect],[data-clear-activities],[data-restore-plan],[data-export-plan],[data-live-act],[data-delete-activity]');
   if (!t) return;
   if (t.dataset.liveAct) {
@@ -631,6 +650,8 @@ document.addEventListener('change', async (ev) => {
 
 document.addEventListener('input', (ev) => {
   if (handleParcoursInput(ev, $view.querySelector('[data-parcours]'))) return;
+  if (handleRoutineInput(ev)) return;
+  if (ev.target.matches('[data-weight]')) { saveWeight(ev.target.value); return; }
   handleQuizInput(ev, $view.querySelector('[data-quiz]'));
 });
 

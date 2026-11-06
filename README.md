@@ -11,6 +11,7 @@ Ton programme de course à pied, séance par séance. Une appli web installable 
 - **Analyse** : import de l’archive Strava (`activities.csv`), rattachement automatique aux séances, kilomètres par semaine, allure et fréquence cardiaque de chaque sortie, tests et dernières sorties.
 - **Courir avec Foulée** : carte OpenStreetMap en direct, chrono, distance, allure instantanée et moyenne, annonces vocales à chaque kilomètre, guidage de la séance étape par étape avec alertes d’allure, puis parcours, temps au kilomètre et enregistrement. L’écran doit rester allumé (limite de Safari).
 - **Parcours** : trois boucles autour de ta position, à la distance de la séance (ou réglable), calculées sur les chemins piétons OpenStreetMap ; tracé affiché pendant la course avec alerte si tu t’en éloignes, export GPX.
+- **Conseils** : conseils adaptés à chaque séance (avant, pendant, après), guide du jour J selon la distance (recharge, repas, échauffement, allure, temps de passage, ravitaillement), bibliothèque (alimentation, hydratation, récupération, étirements, renforcement, blessures, café) avec quantités calculées si le poids est indiqué, routines guidées à la voix (échauffement dynamique, renforcement, retour au calme).
 - **Outils** : allure / temps / distance, temps de passage, prédictions de chrono et allures d’entraînement.
 - **Connexion Strava** (optionnelle) : récupération automatique des sorties récentes. Mise en place : [docs/STRAVA.md](docs/STRAVA.md).
 - **Réglages** : sauvegarde et restauration des données.
@@ -40,6 +41,7 @@ Ouvre le site dans Safari sur iPhone, touche Partager, puis « Sur l’écran d�
 | `js/store.js` | Données sur le téléphone, rattachement des sorties aux séances |
 | `js/coach.js` | Moteur d’entraînement (niveau, VDOT, allures, programme, adaptation) |
 | `js/quiz.js` | Questionnaire de départ |
+| `js/conseils.js`, `js/routines.js` | Conseils, guide du jour J, routines guidées |
 | `js/steps.js` | Étapes des séances et guide Apple Watch |
 | `js/tools.js` | Calculateurs |
 | `js/analyse.js` | Graphiques et analyse |

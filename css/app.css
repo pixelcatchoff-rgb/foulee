@@ -394,6 +394,49 @@ a { color: inherit; }
 .paces summary span { font: 700 22px/1 var(--font-cond); }
 .paces summary small { color: var(--ink-soft); font-size: 14px; }
 
+/* ---------- Conseils ---------- */
+.tip-card {
+  display: grid; gap: 2px; text-decoration: none; margin: 0 0 16px; padding: 12px 14px;
+  border-radius: var(--radius-l); background: var(--surface); border: 1px solid var(--line); border-left: 6px solid var(--long);
+  font-size: 15px; color: var(--ink-soft);
+}
+.tip-card .tip-title { font: 700 19px/1.15 var(--font-cond); color: var(--ink); }
+.tip-race { border-left-color: var(--test); }
+.tips { margin: 20px 0; }
+.tip-block h3 { font: 700 18px/1.2 var(--font-cond); margin: 12px 0 4px; }
+.tip-block ul, .jj-block ul { margin: 0; padding-left: 20px; }
+.tip-block li, .jj-block li { margin: 5px 0; }
+.tip-routines { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.jj-block { margin-top: 18px; }
+.jj-block .section-title { margin: 0 0 6px; }
+.articles { list-style: none; padding: 0; margin: 0; }
+.articles a { display: grid; gap: 2px; text-decoration: none; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.art-title { font-weight: 600; font-size: 17px; }
+.art-lead { color: var(--ink-soft); font-size: 15px; }
+.sources { font-size: 13px; color: var(--ink-soft); margin-top: 22px; }
+.sources a { color: inherit; }
+.weight-field { max-width: 180px; }
+.t-quality.hub-card, .hub-card.t-quality { --accent: var(--quality); }
+
+/* Routines */
+.rt-card {
+  display: grid; gap: 6px; padding: 18px; margin: 14px 0; border-radius: var(--radius-l);
+  background: var(--surface); border: 1px solid var(--line); border-left: 6px solid var(--easy);
+}
+.rt-card.is-rest { border-left-color: var(--long); }
+.rt-card.is-done { border-left-color: var(--quality); }
+.rt-round { font: 600 15px/1 var(--font-cond); color: var(--ink-soft); }
+.rt-name { font: 700 28px/1.1 var(--font-cond); }
+.rt-time { font: 700 72px/1 var(--font-cond); font-variant-numeric: tabular-nums; }
+.rt-how { color: var(--ink-soft); }
+.rt-next { font-size: 14px; color: var(--ink-soft); }
+.rt-progress { height: 5px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+.rt-progress span { display: block; height: 100%; background: var(--easy); }
+.rt-list { list-style: none; padding: 0; margin: 10px 0 0; }
+.rt-list li { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line); color: var(--ink-soft); }
+.rt-list li.is-now { color: var(--ink); font-weight: 600; }
+.rt-list li.is-done { text-decoration: line-through; opacity: .6; }
+
 /* ---------- Courir (accueil) ---------- */
 .hub { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 10px; }
 .hub-card {
