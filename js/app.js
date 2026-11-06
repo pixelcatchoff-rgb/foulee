@@ -1,8 +1,16 @@
 import { store, allSessions, findSession, phaseOf } from './store.js';
 import { describe, watchGuide, totalTime } from './steps.js';
-import { viewTools, bindTools } from './tools.js';
+import { viewTools, bindTools, DISTANCES } from './tools.js';
+import { viewAnalyse } from './analyse.js';
+import { readStravaCSV } from './strava-csv.js';
 import {
-  todayISO, daysBetween, dateLong, dateShort, dayMonth, clock, duration, parseClock, esc, addDays, rangeLabel,
+  buildPlan, feasibility, validate, nextSunday, goalLabel, GOALS, WEEKDAYS,
+} from './generator.js';
+import {
+  stravaConfigured, stravaConnected, connectStrava, handleStravaCallback, syncStrava, disconnectStrava,
+} from './strava.js';
+import {
+  todayISO, daysBetween, dateLong, dateShort, dayMonth, clock, duration, esc, addDays, rangeLabel, distance,
 } from './util.js';
 
 const $view = document.getElementById('view');
@@ -16,7 +24,7 @@ const TYPE = {
   facile: { label: 'Footing', cls: 't-easy' },
   longue: { label: 'Sortie longue', cls: 't-long' },
   qualite: { label: 'Qualité', cls: 't-quality' },
-  test: { label: 'Test 3 km', cls: 't-test' },
+  test: { label: 'Test', cls: 't-test' },
   objectif: { label: 'Objectif', cls: 't-goal' },
 };
 
@@ -49,14 +57,14 @@ function lane(ctx) {
   const { plan } = ctx;
   const n = plan.weeks.length;
   const W = 340, x0 = 14, x1 = W - 14;
-  const xOf = (week) => x0 + ((week - 1) / (n - 1)) * (x1 - x0);
+  const xOf = (week) => x0 + ((week - 1) / Math.max(n - 1, 1)) * (x1 - x0);
   const totalDays = daysBetween(plan.start, ctx.goalDate);
   const elapsed = Math.max(0, Math.min(totalDays, daysBetween(plan.start, ctx.t)));
   const xNow = x0 + (elapsed / totalDays) * (x1 - x0);
 
   const bars = plan.weeks.map((w) => {
     const sess = ctx.sessions.filter((s) => s.week === w.n);
-    const ratio = sess.filter(ctx.done).length / sess.length;
+    const ratio = sess.length ? sess.filter(ctx.done).length / sess.length : 0;
     const x = xOf(w.n);
     const hasTest = sess.some((s) => s.type === 'test');
     const h = 22;
@@ -126,6 +134,7 @@ function viewToday() {
     ${lead}
     ${hero}
     ${missed}
+    ${ctx.doneCount === 0 ? `<p class="hint">Programme : ${esc(ctx.plan.goal.label)}. Ce n’est pas ton objectif ? <a href="#/nouveau-programme">Crée ton propre programme</a>.</p>` : ''}
     ${lane(ctx)}
     <dl class="stats">
       <div><dt>Séances faites</dt><dd>${ctx.doneCount}<small>/${ctx.sessions.length}</small></dd></div>
@@ -166,7 +175,8 @@ function viewPlan() {
   const { plan } = ctx;
   return `
     <h1 class="page-title">Programme</h1>
-    <p class="lede">${esc(plan.goal.label)} le ${dayMonth(ctx.goalDate)}, puis ${esc(plan.goal.secondary)}. Trois séances par semaine, un jour de repos entre deux.</p>
+    <p class="lede">${esc(plan.goal.label)} le ${dayMonth(ctx.goalDate)}${plan.goal.secondary ? `, puis ${esc(plan.goal.secondary)}` : ''}. Un jour de repos entre deux séances.</p>
+    <a class="btn btn-small" href="#/nouveau-programme">Nouveau programme</a>
     ${plan.phases.map((p) => `
       <section class="phase">
         <header class="phase-head">
@@ -265,7 +275,7 @@ function viewSession(id) {
           <span class="unit-input"><input name="distance" inputmode="decimal" autocomplete="off" value="${e.distance ? String(e.distance).replace('.', ',') : ''}"><em>km</em></span>
         </label>
       </div>
-      ${isTest ? timeField('time3k', 'Temps sur 3 km', e.time3k) : ''}
+      ${isTest ? timeField('time3k', `Temps sur ${distance(s.testDist || store.plan.goal.distance)}`, e.time3k) : ''}
       <fieldset class="rpe">
         <legend>Ressenti, de 1 (très facile) à 10 (à fond)</legend>
         <div class="rpe-scale">
@@ -282,45 +292,33 @@ function viewSession(id) {
   `;
 }
 
-/* ---------- Écran : Tests ---------- */
+/* ---------- Écran : Analyse ---------- */
 
-function viewTests() {
-  const ctx = context();
-  const tests = ctx.sessions.filter((s) => s.type === 'test' || s.type === 'objectif');
+function stravaBlock() {
+  if (!stravaConfigured()) return '';
+  if (!stravaConnected()) {
+    return `
+      <p>Connecte ton compte pour récupérer automatiquement tes sorties récentes.</p>
+      <div class="form-actions"><button class="btn btn-strava" data-strava-connect>Se connecter avec Strava</button></div>`;
+  }
+  const s = store.strava;
+  const when = s.lastSync ? new Date(s.lastSync).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'jamais';
   return `
-    <h1 class="page-title">Tests 3 km</h1>
-    <p class="lede">Chaque test indique si tu es sur la bonne trajectoire vers ${clock(ctx.plan.goal.time)}. Point de départ : ${esc(ctx.plan.baseline)}</p>
-    <ul class="tests">
-      ${tests.map((s) => {
-        const e = store.entry(s.id);
-        const t = e?.time3k;
-        const gap = t ? t - s.repere : null;
-        return `
-        <li class="test ${s.type === 'objectif' ? 'is-goal' : ''}">
-          <a href="#/seance/${s.id}">
-            <span class="test-name">${s.type === 'objectif' ? 'Objectif' : esc(s.title)}</span>
-            <span class="test-date">${dateShort(s.date)}</span>
-            <span class="test-target">Repère ${clock(s.repere)}</span>
-            <span class="test-result">${t ? clock(t) : '—'}</span>
-            <span class="test-gap ${gap === null ? '' : gap <= 0 ? 'is-good' : gap <= 30 ? 'is-close' : 'is-far'}">
-              ${gap === null ? 'à venir' : gap <= 0 ? `${clock(-gap)} d’avance` : `${clock(gap)} de retard`}
-            </span>
-            ${t ? `<span class="test-pace">${clock(t / 3)}/km</span>` : ''}
-          </a>
-        </li>`;
-      }).join('')}
-    </ul>
-    <p class="hint">Plus de 30 secondes de retard sur un repère : ralentis un peu les allures de la phase suivante plutôt que de forcer.</p>
-  `;
+    <p>Connecté à Strava${s.athlete ? ` (${esc(s.athlete)})` : ''}. Dernière synchronisation : ${when}.</p>
+    <div class="form-actions"><button class="btn btn-primary" data-strava-sync>Synchroniser</button></div>`;
+}
+
+function viewAnalyseScreen() {
+  return viewAnalyse(context(), stravaBlock());
 }
 
 /* ---------- Écran : Outils ---------- */
 
-// Chrono de référence : dernier test 3 km saisi, sinon le point de départ (≈ 6:20/km).
+// Chrono de référence : dernier test saisi, sinon le point de départ (≈ 6:20/km sur 3 km).
 function referencePerf() {
   const tests = allSessions().filter((s) => (s.type === 'test' || s.type === 'objectif') && store.entry(s.id)?.time3k);
   const last = tests[tests.length - 1];
-  if (last) return { dist: 3000, time: store.entry(last.id).time3k, fromLog: true };
+  if (last) return { dist: last.testDist || store.plan.goal.distance, time: store.entry(last.id).time3k, fromLog: true };
   return { dist: 3000, time: 1140, fromLog: false };
 }
 
@@ -328,11 +326,156 @@ function viewToolsScreen() {
   return viewTools(store.tools, referencePerf());
 }
 
+/* ---------- Écran : Nouveau programme ---------- */
+
+function genDefaults() {
+  const g = store.plan.generated;
+  const ref = referencePerf();
+  const t = today();
+  return {
+    goalDist: g?.goalDist ?? store.plan.goal.distance,
+    goalTime: g?.goalTime ?? store.plan.goal.time,
+    goalDate: g?.goalDate && g.goalDate > t ? g.goalDate : addDays(t, 7 * 16),
+    start: nextSunday(addDays(t, 1)),
+    perWeek: g?.perWeek ?? 3,
+    days: g?.days ?? [0, 2, 4],
+    longDay: g?.longDay ?? 0,
+    ref: { dist: ref.dist, time: ref.time },
+  };
+}
+
+function hmsInputs(prefix, sec, label) {
+  const h = sec >= 3600 ? Math.floor(sec / 3600) : '';
+  const m = sec ? Math.floor((sec % 3600) / 60) : '';
+  const s = sec ? String(sec % 60).padStart(2, '0') : '';
+  const cell = (n, v, unit, max) => `<span class="unit-input"><input name="${prefix}_${n}" inputmode="numeric" pattern="[0-9]*" maxlength="${max}" autocomplete="off" aria-label="${label}, ${unit}" value="${v}"><em>${n}</em></span>`;
+  return `<div class="time-pair has-hours">${cell('h', h, 'heures', 2)}${cell('min', m, 'minutes', 2)}${cell('s', s, 'secondes', 2)}</div>`;
+}
+
+function readHms(fd, prefix) {
+  const g = (n) => parseInt(fd.get(`${prefix}_${n}`), 10) || 0;
+  const t = g('h') * 3600 + g('min') * 60 + Math.min(59, g('s'));
+  return t || null;
+}
+
+function readGenForm(form) {
+  const fd = new FormData(form);
+  const days = fd.getAll('days').map(Number);
+  return {
+    goalDist: Number(fd.get('goalDist')),
+    goalTime: readHms(fd, 'gt'),
+    goalDate: fd.get('goalDate'),
+    start: fd.get('start'),
+    perWeek: Number(fd.get('perWeek')),
+    days,
+    longDay: Number(fd.get('longDay')),
+    ref: { dist: Number(fd.get('refDist')), time: readHms(fd, 'rt') },
+  };
+}
+
+function viewGenerator() {
+  const o = genDefaults();
+  const order = [1, 2, 3, 4, 5, 6, 0];
+  return `
+    <a class="back" href="#/programme" data-back>Programme</a>
+    <h1 class="page-title">Nouveau programme</h1>
+    <p class="lede">Même méthode que ton programme actuel : une base, de la vitesse, du travail à l’allure objectif, des tests et un affûtage.</p>
+    <form class="gen" data-gen>
+      <div class="field">
+        <span>Objectif</span>
+        <div class="segmented segmented-compact" role="radiogroup" aria-label="Distance objectif">
+          ${GOALS.map(([d, l]) => `<label><input type="radio" name="goalDist" value="${d}" ${o.goalDist === d ? 'checked' : ''}><span>${l}</span></label>`).join('')}
+        </div>
+      </div>
+      <div class="field"><span>Temps visé</span>${hmsInputs('gt', o.goalTime, 'Temps visé')}</div>
+      <div class="field-row field-row-even">
+        <label class="field"><span>Date de l’objectif</span><input type="date" name="goalDate" value="${o.goalDate}"></label>
+        <label class="field"><span>Début du programme</span><input type="date" name="start" value="${o.start}"></label>
+      </div>
+      <div class="field">
+        <span>Séances par semaine</span>
+        <div class="segmented segmented-compact" role="radiogroup" aria-label="Séances par semaine">
+          ${[3, 4].map((n) => `<label><input type="radio" name="perWeek" value="${n}" ${o.perWeek === n ? 'checked' : ''}><span>${n} séances</span></label>`).join('')}
+        </div>
+      </div>
+      <div class="field">
+        <span>Jours de course</span>
+        <div class="daypick" role="group" aria-label="Jours de course">
+          ${order.map((d) => `<label><input type="checkbox" name="days" value="${d}" ${o.days.includes(d) ? 'checked' : ''}><span>${WEEKDAYS[d]}</span></label>`).join('')}
+        </div>
+      </div>
+      <label class="field"><span>Sortie longue le</span>
+        <select name="longDay">${order.map((d) => `<option value="${d}" ${o.longDay === d ? 'selected' : ''}>${WEEKDAYS[d]}</option>`).join('')}</select>
+      </label>
+      <div class="field">
+        <span>Ton niveau actuel : un chrono récent</span>
+        <div class="segmented segmented-compact" role="radiogroup" aria-label="Distance du chrono">
+          ${DISTANCES.slice(0, 5).map(([d, l]) => `<label><input type="radio" name="refDist" value="${d}" ${o.ref.dist === d ? 'checked' : ''}><span>${l}</span></label>`).join('')}
+        </div>
+      </div>
+      <div class="field">${hmsInputs('rt', o.ref.time, 'Chrono de référence')}</div>
+      <div class="gen-preview" data-gen-preview aria-live="polite"></div>
+      <div class="form-actions"><button class="btn btn-primary" type="submit">Créer ce programme</button></div>
+    </form>`;
+}
+
+function genPreview(form) {
+  const o = readGenForm(form);
+  const box = form.querySelector('[data-gen-preview]');
+  const errs = validate(o);
+  if (errs.length) {
+    box.innerHTML = `<ul class="gen-errors">${errs.map((e) => `<li>${esc(e)}</li>`).join('')}</ul>`;
+    return null;
+  }
+  const plan = buildPlan(o);
+  const f = feasibility(o);
+  const msg = {
+    easy: 'Ton niveau actuel dépasse déjà cet objectif : vise un peu plus vite.',
+    ok: 'Objectif réaliste avec de la régularité.',
+    stretch: 'Objectif ambitieux : il demande de tenir le programme presque sans trou.',
+    hard: 'Objectif très ambitieux pour ce délai : recule la date ou vise un peu moins vite.',
+  }[f.level];
+  const tests = plan.weeks.flatMap((w) => w.sessions.filter((s) => s.type === 'test').map((s) => ({ ...s, week: w.n })));
+  const first = plan.weeks[0];
+  return (box.innerHTML = `
+    <h2 class="section-title">Aperçu</h2>
+    <p class="gen-verdict is-${f.level}">${msg}</p>
+    <dl class="stats">
+      <div><dt>Semaines</dt><dd>${plan.weeks.length}</dd></div>
+      <div><dt>Allure objectif</dt><dd>${clock(o.goalTime / (o.goalDist / 1000))}</dd></div>
+      <div><dt>Ton niveau sur ${distance(o.goalDist)}</dt><dd>${clock(f.now)}</dd></div>
+    </dl>
+    <p class="hint">${plan.phases.map((p) => `${p.name} : semaines ${p.from} à ${p.to}`).join(' · ')}.
+      ${tests.length ? `Tests : ${tests.map((t) => `semaine ${t.week} (repère ${clock(t.repere)})`).join(', ')}.` : ''}</p>
+    <h3 class="sub-title">Semaine 1</h3>
+    <ul class="gen-week">${first.sessions.map((s) => `<li><span>${WEEKDAYS[(new Date(`${o.start}T12:00`).getDay() + s.day) % 7]}</span>${esc(s.title)}</li>`).join('')}</ul>`, plan);
+}
+
 /* ---------- Écran : Réglages ---------- */
 
 function viewSettings() {
+  const s = store.strava;
   return `
     <h1 class="page-title">Réglages</h1>
+    <section class="panel">
+      <h2>Programme</h2>
+      <p>${esc(store.plan.name || store.plan.goal.label)}, du ${dayMonth(store.plan.start)} au ${dayMonth(allSessions().at(-1).date)}.
+        ${store.history.length ? `Programme précédent : ${esc(store.history.at(-1).plan.name || store.history.at(-1).plan.goal.label)}.` : ''}</p>
+      <div class="form-actions">
+        <a class="btn" href="#/nouveau-programme">Créer un nouveau programme</a>
+        ${store.history.length ? '<button class="btn btn-ghost" data-restore-plan>Revenir au programme précédent</button>' : ''}
+      </div>
+    </section>
+    <section class="panel">
+      <h2>Strava</h2>
+      ${!stravaConfigured()
+        ? '<p>Tu peux importer ton archive Strava depuis l’onglet Analyse. La connexion automatique s’active une fois le relais installé (guide dans le dépôt GitHub, fichier docs/STRAVA.md).</p>'
+        : s?.refresh
+          ? `<p>Connecté${s.athlete ? ` (${esc(s.athlete)})` : ''}. Les sorties récupérées par la connexion sont gardées 7 jours, comme le demande Strava ; ce que tu as rattaché à tes séances reste.</p>
+             <div class="form-actions"><button class="btn" data-strava-sync>Synchroniser</button><button class="btn btn-ghost" data-strava-disconnect>Déconnecter Strava</button></div>`
+          : '<p>Pas connecté.</p><div class="form-actions"><button class="btn btn-strava" data-strava-connect>Se connecter avec Strava</button></div>'}
+      ${store.activities.length ? `<p class="hint">${store.activities.length} sortie${store.activities.length > 1 ? 's' : ''} enregistrée${store.activities.length > 1 ? 's' : ''}. <button class="linkish" data-clear-activities>Les effacer</button></p>` : ''}
+    </section>
     <section class="panel">
       <h2>Tes données</h2>
       <p>Tout est enregistré sur ce téléphone, sans compte. Fais une sauvegarde de temps en temps, et avant de changer de téléphone.</p>
@@ -345,16 +488,12 @@ function viewSettings() {
       <h2>Installer Foulée</h2>
       <p>Sur iPhone : ouvre ce site dans Safari, touche Partager, puis « Sur l’écran d’accueil ». Sur Android : menu de Chrome, puis « Installer l’application ».</p>
     </section>
-    <section class="panel">
-      <h2>Bientôt</h2>
-      <p>Import de l’archive Strava et analyse de tes sorties, générateur de plan et connexion Strava.</p>
-    </section>
     <section class="panel panel-danger">
       <h2>Repartir de zéro</h2>
-      <p>Efface toutes les séances cochées et recharge le programme de départ.</p>
+      <p>Efface les séances cochées, les sorties importées et recharge le programme de départ.</p>
       <button class="btn btn-ghost" data-reset>Effacer mes données</button>
     </section>
-    <p class="hint">Foulée, version 0.2</p>
+    <p class="hint">Foulée, version 1.0</p>
   `;
 }
 
@@ -364,7 +503,8 @@ const routes = [
   [/^#\/?$/, viewToday, 'today'],
   [/^#\/programme$/, viewPlan, 'plan'],
   [/^#\/seance\/([\w-]+)$/, viewSession, 'plan'],
-  [/^#\/tests$/, viewTests, 'tests'],
+  [/^#\/nouveau-programme$/, viewGenerator, 'plan'],
+  [/^#\/(?:analyse|tests)$/, viewAnalyseScreen, 'analyse'],
   [/^#\/outils$/, viewToolsScreen, 'tools'],
   [/^#\/reglages$/, viewSettings, 'settings'],
 ];
@@ -375,10 +515,12 @@ function render() {
   for (const [re, view, tab] of routes) {
     const m = hash.match(re);
     if (m) {
-      // Les calculateurs ne se redessinent pas à chaque sauvegarde (on garderait le clavier ouvert).
-      if (tab === 'tools' && hash === lastHash && $view.querySelector('[data-tool]')) return;
+      // Les formulaires vivants ne se redessinent pas à chaque sauvegarde (on garderait le clavier ouvert).
+      if (hash === lastHash && $view.querySelector('[data-tool], [data-gen]')) return;
       $view.innerHTML = view(...m.slice(1));
       if (tab === 'tools') bindTools($view, (patch) => store.saveTools(patch));
+      const gen = $view.querySelector('[data-gen]');
+      if (gen) genPreview(gen);
       $nav.querySelectorAll('a').forEach((a) => a.toggleAttribute('aria-current', a.dataset.tab === tab));
       if (hash !== lastHash) {
         window.scrollTo(0, 0);
@@ -404,9 +546,29 @@ function toast(msg) {
 }
 
 document.addEventListener('click', (ev) => {
-  const t = ev.target.closest('[data-toggle],[data-quickdone],[data-clear],[data-export],[data-reset],[data-back]');
+  const t = ev.target.closest('[data-toggle],[data-quickdone],[data-clear],[data-export],[data-reset],[data-back],[data-strava-connect],[data-strava-sync],[data-strava-disconnect],[data-clear-activities],[data-restore-plan]');
   if (!t) return;
-  if (t.dataset.toggle) {
+  if ('stravaConnect' in t.dataset) {
+    connectStrava();
+  } else if ('stravaSync' in t.dataset) {
+    t.disabled = true;
+    t.textContent = 'Synchronisation…';
+    runSync(true);
+  } else if ('stravaDisconnect' in t.dataset) {
+    if (confirm('Déconnecter Strava ? Tes séances déjà remplies sont gardées.')) {
+      disconnectStrava().then(() => toast('Strava déconnecté'));
+    }
+  } else if ('restorePlan' in t.dataset) {
+    if (confirm('Revenir au programme précédent ? Le programme actuel et son suivi sont gardés et tu pourras y revenir.')) {
+      store.restorePrevious();
+      toast('Programme précédent rétabli');
+    }
+  } else if ('clearActivities' in t.dataset) {
+    if (confirm('Effacer toutes les sorties importées ? Tes séances cochées restent cochées.')) {
+      store.clearActivities();
+      toast('Sorties effacées');
+    }
+  } else if (t.dataset.toggle) {
     const was = store.entry(t.dataset.toggle)?.done;
     store.toggle(t.dataset.toggle);
     toast(was ? 'Séance décochée' : 'Séance cochée');
@@ -424,7 +586,7 @@ document.addEventListener('click', (ev) => {
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   } else if ('reset' in t.dataset) {
-    if (confirm('Effacer toutes tes séances cochées et recharger le programme de départ ?')) {
+    if (confirm('Effacer tes séances cochées, tes sorties importées et recharger le programme de départ ?')) {
       store.reset();
       toast('Données effacées');
     }
@@ -435,6 +597,18 @@ document.addEventListener('click', (ev) => {
 });
 
 document.addEventListener('change', async (ev) => {
+  if (ev.target.matches('[data-import-csv]')) {
+    const file = ev.target.files[0];
+    if (!file) return;
+    try {
+      const { runs } = readStravaCSV(await file.text());
+      const { added, linked } = store.addActivities(runs);
+      toast(`${added} sortie${added > 1 ? 's' : ''} ajoutée${added > 1 ? 's' : ''}${linked ? `, ${linked} séance${linked > 1 ? 's' : ''} remplie${linked > 1 ? 's' : ''}` : ''}`);
+    } catch (err) {
+      toast(err.message || 'Fichier illisible');
+    }
+    return;
+  }
   if (!ev.target.matches('[data-import]')) return;
   const file = ev.target.files[0];
   if (!file) return;
@@ -446,7 +620,32 @@ document.addEventListener('change', async (ev) => {
   }
 });
 
+document.addEventListener('input', (ev) => {
+  const gen = ev.target.closest('[data-gen]');
+  if (!gen) return;
+  // Le nombre de jours cochés suit le nombre de séances
+  if (ev.target.name === 'perWeek') {
+    const n = Number(ev.target.value);
+    const boxes = [...gen.querySelectorAll('[name=days]')];
+    const defaults = n === 4 ? [0, 2, 4, 6] : [0, 2, 4];
+    if (boxes.filter((b) => b.checked).length !== n) boxes.forEach((b) => { b.checked = defaults.includes(Number(b.value)); });
+  }
+  genPreview(gen);
+});
+
 document.addEventListener('submit', (ev) => {
+  const gen = ev.target.closest('[data-gen]');
+  if (gen) {
+    ev.preventDefault();
+    const plan = genPreview(gen);
+    if (!plan) { toast('Complète les réglages du programme'); return; }
+    const hasLog = Object.keys(store.log).length > 0;
+    if (hasLog && !confirm('Ton programme actuel et son suivi seront archivés (ils restent dans tes sauvegardes). Créer le nouveau programme ?')) return;
+    store.replacePlan(plan);
+    location.hash = '#/';
+    toast('Nouveau programme créé');
+    return;
+  }
   const form = ev.target.closest('[data-log]');
   if (!form) return;
   ev.preventDefault();
@@ -463,9 +662,26 @@ document.addEventListener('submit', (ev) => {
   toast('Séance enregistrée');
 });
 
+async function runSync(force = false) {
+  try {
+    const r = await syncStrava({ force });
+    if (force || r?.added) {
+      toast(r ? `Strava : ${r.added} nouvelle${r.added > 1 ? 's' : ''} sortie${r.added > 1 ? 's' : ''}${r.linked ? `, ${r.linked} séance${r.linked > 1 ? 's' : ''} remplie${r.linked > 1 ? 's' : ''}` : ''}` : 'Strava à jour');
+    }
+  } catch (e) {
+    if (force) toast(`Synchronisation impossible : ${e.message}`);
+  } finally {
+    if (force) { lastHash = null; render(); }
+  }
+}
+
 store.subscribe(render);
 window.addEventListener('hashchange', render);
 render();
+
+handleStravaCallback().then((r) => {
+  if (r) { toast(r.message); if (r.ok) runSync(true); } else runSync(false);
+});
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('./sw.js');

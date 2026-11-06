@@ -49,7 +49,7 @@ export function totalTime(steps) {
   for (const st of steps) {
     if (st.k === 'repeat') t += st.times * totalTime(st.steps);
     else if (st.dur) t += st.dur;
-    else if (st.dist) t += (st.dist / 1000) * ((st.pace?.[1] ?? 540));
+    else if (st.dist) t += (st.dist / 1000) * (st.pace?.[1] ?? 360);
   }
   return t;
 }

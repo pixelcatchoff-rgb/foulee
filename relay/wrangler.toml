@@ -1,0 +1,8 @@
+name = "foulee-strava"
+main = "worker.js"
+compatibility_date = "2026-11-01"
+
+[vars]
+ALLOWED_ORIGINS = "https://pixelcatchoff-rgb.github.io"
+# STRAVA_CLIENT_ID et STRAVA_CLIENT_SECRET : à définir dans le tableau de bord Cloudflare
+# (Settings > Variables and Secrets), le secret en type « Secret ».
