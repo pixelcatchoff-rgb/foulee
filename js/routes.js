@@ -90,10 +90,11 @@ async function buildLoop(start, target, bearing) {
 }
 
 // Trois boucles dans trois directions différentes. `onLoop` reçoit chaque boucle dès qu'elle est prête.
-export async function suggestLoops(start, target, onLoop, seed = Math.random() * 120) {
+export async function suggestLoops(start, target, onLoop, seed = Math.random() * 120, stillWanted = () => true) {
   const out = [];
   let lastError = null;
   for (const b of [0, 120, 240].map((x) => x + seed)) {
+    if (!stillWanted()) return out; // une nouvelle recherche a remplacé celle-ci
     try {
       const loop = await buildLoop(start, target, b);
       out.push(loop);
