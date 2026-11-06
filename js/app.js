@@ -32,8 +32,9 @@ const TYPE = {
 
 function context() {
   const plan = store.plan;
-  const sessions = allSessions(plan);
   const t = today();
+  if (!plan) return { plan: null, sessions: [], t, done: () => false, empty: true };
+  const sessions = allSessions(plan);
   const done = (s) => !!store.entry(s.id)?.done;
   const last = sessions[sessions.length - 1];
   const weekNow = Math.floor(daysBetween(plan.start, t) / 7) + 1;
@@ -90,10 +91,31 @@ function lane(ctx) {
   </figure>`;
 }
 
+/* ---------- Accueil sans programme ---------- */
+
+function welcome(title = 'Bienvenue sur Foulée') {
+  return `
+    <section class="hero t-easy">
+      <h1 class="hero-title">${title}</h1>
+      <p class="hero-meta">Indique ton objectif, ta date et un chrono récent : Foulée construit ton programme séance par séance, avec tes allures.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="#/nouveau-programme">Créer mon programme</a>
+        <label class="btn">Importer un programme<input type="file" accept="application/json,.json" data-import hidden></label>
+      </div>
+    </section>
+    <ol class="welcome-steps">
+      <li><span><strong>Un programme sur mesure.</strong> 3 km, 5 km, 10 km ou semi-marathon, avec tests et affûtage.</span></li>
+      <li><span><strong>Chaque séance expliquée.</strong> Allures, temps de passage et réglage pas à pas sur l’Apple Watch.</span></li>
+      <li><span><strong>Tes sorties Strava.</strong> Importées et rattachées toutes seules à tes séances, dans l’onglet Analyse.</span></li>
+    </ol>
+    <p class="hint">Tes données restent sur ce téléphone, sans compte.</p>`;
+}
+
 /* ---------- Écran : Aujourd'hui ---------- */
 
 function viewToday() {
   const ctx = context();
+  if (ctx.empty) return welcome();
   const s = ctx.next;
   const daysLeft = daysBetween(ctx.t, ctx.goalDate);
 
@@ -118,7 +140,8 @@ function viewToday() {
     </section>` : `
     <section class="hero t-goal">
       <h1 class="hero-title">Toutes les séances sont faites</h1>
-      <p class="hero-meta">Bravo. Le générateur de plan arrive bientôt pour préparer la suite.</p>
+      <p class="hero-meta">Bravo. Prépare la suite avec un nouvel objectif.</p>
+      <div class="hero-actions"><a class="btn btn-primary" href="#/nouveau-programme">Nouveau programme</a></div>
     </section>`;
 
   const missed = ctx.missed.length ? `
@@ -134,7 +157,6 @@ function viewToday() {
     ${lead}
     ${hero}
     ${missed}
-    ${ctx.doneCount === 0 ? `<p class="hint">Programme : ${esc(ctx.plan.goal.label)}. Ce n’est pas ton objectif ? <a href="#/nouveau-programme">Crée ton propre programme</a>.</p>` : ''}
     ${lane(ctx)}
     <dl class="stats">
       <div><dt>Séances faites</dt><dd>${ctx.doneCount}<small>/${ctx.sessions.length}</small></dd></div>
@@ -172,6 +194,7 @@ function sessionRow(s, ctx) {
 
 function viewPlan() {
   const ctx = context();
+  if (ctx.empty) return `<h1 class="page-title">Programme</h1>${welcome('Pas encore de programme')}`;
   const { plan } = ctx;
   return `
     <h1 class="page-title">Programme</h1>
@@ -314,12 +337,12 @@ function viewAnalyseScreen() {
 
 /* ---------- Écran : Outils ---------- */
 
-// Chrono de référence : dernier test saisi, sinon le point de départ (≈ 6:20/km sur 3 km).
+// Chrono de référence : dernier test saisi, sinon rien.
 function referencePerf() {
   const tests = allSessions().filter((s) => (s.type === 'test' || s.type === 'objectif') && store.entry(s.id)?.time3k);
   const last = tests[tests.length - 1];
   if (last) return { dist: last.testDist || store.plan.goal.distance, time: store.entry(last.id).time3k, fromLog: true };
-  return { dist: 3000, time: 1140, fromLog: false };
+  return null;
 }
 
 function viewToolsScreen() {
@@ -329,12 +352,12 @@ function viewToolsScreen() {
 /* ---------- Écran : Nouveau programme ---------- */
 
 function genDefaults() {
-  const g = store.plan.generated;
-  const ref = referencePerf();
+  const g = store.plan?.generated;
+  const ref = referencePerf() || g?.ref || { dist: 5000, time: null };
   const t = today();
   return {
-    goalDist: g?.goalDist ?? store.plan.goal.distance,
-    goalTime: g?.goalTime ?? store.plan.goal.time,
+    goalDist: g?.goalDist ?? store.plan?.goal.distance ?? 5000,
+    goalTime: g?.goalTime ?? store.plan?.goal.time ?? null,
     goalDate: g?.goalDate && g.goalDate > t ? g.goalDate : addDays(t, 7 * 16),
     start: nextSunday(addDays(t, 1)),
     perWeek: g?.perWeek ?? 3,
@@ -377,9 +400,9 @@ function viewGenerator() {
   const o = genDefaults();
   const order = [1, 2, 3, 4, 5, 6, 0];
   return `
-    <a class="back" href="#/programme" data-back>Programme</a>
+    <a class="back" href="${store.plan ? '#/programme' : '#/'}" data-back>${store.plan ? 'Programme' : 'Accueil'}</a>
     <h1 class="page-title">Nouveau programme</h1>
-    <p class="lede">Même méthode que ton programme actuel : une base, de la vitesse, du travail à l’allure objectif, des tests et un affûtage.</p>
+    <p class="lede">Une base pour courir régulièrement, de la vitesse, du travail à l’allure objectif, des tests en fin de phase et un affûtage.</p>
     <form class="gen" data-gen>
       <div class="field">
         <span>Objectif</span>
@@ -459,10 +482,14 @@ function viewSettings() {
     <h1 class="page-title">Réglages</h1>
     <section class="panel">
       <h2>Programme</h2>
-      <p>${esc(store.plan.name || store.plan.goal.label)}, du ${dayMonth(store.plan.start)} au ${dayMonth(allSessions().at(-1).date)}.
+      <p>${store.plan
+        ? `${esc(store.plan.name || store.plan.goal.label)}, du ${dayMonth(store.plan.start)} au ${dayMonth(allSessions().at(-1).date)}.`
+        : 'Aucun programme pour l’instant.'}
         ${store.history.length ? `Programme précédent : ${esc(store.history.at(-1).plan.name || store.history.at(-1).plan.goal.label)}.` : ''}</p>
       <div class="form-actions">
-        <a class="btn" href="#/nouveau-programme">Créer un nouveau programme</a>
+        <a class="btn" href="#/nouveau-programme">Créer un programme</a>
+        <label class="btn">Importer un programme<input type="file" accept="application/json,.json" data-import hidden></label>
+        ${store.plan ? '<button class="btn btn-ghost" data-export-plan>Exporter mon programme</button>' : ''}
         ${store.history.length ? '<button class="btn btn-ghost" data-restore-plan>Revenir au programme précédent</button>' : ''}
       </div>
     </section>
@@ -490,10 +517,10 @@ function viewSettings() {
     </section>
     <section class="panel panel-danger">
       <h2>Repartir de zéro</h2>
-      <p>Efface les séances cochées, les sorties importées et recharge le programme de départ.</p>
+      <p>Efface ton programme, tes séances cochées et tes sorties importées. L’appli revient à zéro.</p>
       <button class="btn btn-ghost" data-reset>Effacer mes données</button>
     </section>
-    <p class="hint">Foulée, version 1.0</p>
+    <p class="hint">Foulée, version 1.1</p>
   `;
 }
 
@@ -537,6 +564,15 @@ function render() {
 
 /* ---------- Actions ---------- */
 
+function download(text, name) {
+  const blob = new Blob([text], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
 function toast(msg) {
   const el = document.getElementById('toast');
   el.textContent = msg;
@@ -546,7 +582,7 @@ function toast(msg) {
 }
 
 document.addEventListener('click', (ev) => {
-  const t = ev.target.closest('[data-toggle],[data-quickdone],[data-clear],[data-export],[data-reset],[data-back],[data-strava-connect],[data-strava-sync],[data-strava-disconnect],[data-clear-activities],[data-restore-plan]');
+  const t = ev.target.closest('[data-toggle],[data-quickdone],[data-clear],[data-export],[data-reset],[data-back],[data-strava-connect],[data-strava-sync],[data-strava-disconnect],[data-clear-activities],[data-restore-plan],[data-export-plan]');
   if (!t) return;
   if ('stravaConnect' in t.dataset) {
     connectStrava();
@@ -558,6 +594,8 @@ document.addEventListener('click', (ev) => {
     if (confirm('Déconnecter Strava ? Tes séances déjà remplies sont gardées.')) {
       disconnectStrava().then(() => toast('Strava déconnecté'));
     }
+  } else if ('exportPlan' in t.dataset) {
+    download(store.exportPlanJSON(), `foulee-programme-${todayISO()}.json`);
   } else if ('restorePlan' in t.dataset) {
     if (confirm('Revenir au programme précédent ? Le programme actuel et son suivi sont gardés et tu pourras y revenir.')) {
       store.restorePrevious();
@@ -579,14 +617,9 @@ document.addEventListener('click', (ev) => {
     store.clear(t.dataset.clear);
     toast('Séance décochée');
   } else if ('export' in t.dataset) {
-    const blob = new Blob([store.exportJSON()], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `foulee-sauvegarde-${todayISO()}.json`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    download(store.exportJSON(), `foulee-sauvegarde-${todayISO()}.json`);
   } else if ('reset' in t.dataset) {
-    if (confirm('Effacer tes séances cochées, tes sorties importées et recharger le programme de départ ?')) {
+    if (confirm('Effacer ton programme, tes séances et tes sorties ? Pense à télécharger une sauvegarde avant.')) {
       store.reset();
       toast('Données effacées');
     }
@@ -613,8 +646,8 @@ document.addEventListener('change', async (ev) => {
   const file = ev.target.files[0];
   if (!file) return;
   try {
-    store.importJSON(await file.text());
-    toast('Sauvegarde restaurée');
+    const kind = store.importJSON(await file.text());
+    if (kind === 'programme') { location.hash = '#/'; toast('Programme importé'); } else toast('Sauvegarde restaurée');
   } catch (err) {
     toast(err.message || 'Fichier illisible');
   }

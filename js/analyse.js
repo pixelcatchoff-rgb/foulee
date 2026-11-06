@@ -14,8 +14,9 @@ function niceMax(v) {
 
 function weeklyVolume(runs, plan, t, maxWeeks = 16) {
   // Semaines alignées sur le jour de départ du plan
-  const first = runs.length ? runs[0].date : plan.start;
-  const offset = ((daysBetween(plan.start, first) % 7) + 7) % 7;
+  const first = runs.length ? runs[0].date : t;
+  const anchor = plan?.start || first;
+  const offset = ((daysBetween(anchor, first) % 7) + 7) % 7;
   let start = addDays(first, -offset);
   const end = t;
   const weeks = [];
@@ -91,6 +92,7 @@ function timeChart(points, { invert = false, fmt = String, label, band, bandFit 
 /* ---------- Tests ---------- */
 
 function testsBlock(ctx) {
+  if (!store.plan) return '';
   const tests = allSessions().filter((s) => s.type === 'test' || s.type === 'objectif');
   if (!tests.length) return '';
   const g = store.plan.goal;
@@ -138,7 +140,7 @@ export function viewAnalyse(ctx, strava) {
   const pace = (r) => (r.moving || r.elapsed) / (r.distance / 1000);
   const recentKm = recent.reduce((s, r) => s + r.distance / 1000, 0);
   const recentPace = recent.length ? recent.reduce((s, r) => s + (r.moving || r.elapsed), 0) / (recentKm || 1) : null;
-  const easy = store.plan.easyPace || [510, 540];
+  const easy = store.plan?.easyPace || null;
 
   const importBlock = `
     <section class="analyse-block import">
@@ -188,8 +190,8 @@ export function viewAnalyse(ctx, strava) {
     <section class="analyse-block">
       <h2 class="section-title">Allure de chaque sortie</h2>
       ${timeChart(pacePts, { invert: true, fmt: (v) => clock(v), label: 'Allure par sortie', band: easy })}
-      <p class="legend"><span class="lg-dot"></span>une sortie <span class="lg-trend"></span>moyenne sur 4 sorties <span class="lg-band"></span>zone facile</p>
-      <p class="hint">Plus haut = plus rapide. Une majorité de points dans la zone facile, c’est le bon dosage.</p>
+      <p class="legend"><span class="lg-dot"></span>une sortie <span class="lg-trend"></span>moyenne sur 4 sorties${easy ? '<span class="lg-band"></span>zone facile' : ''}</p>
+      <p class="hint">Plus haut = plus rapide.${easy ? ' Une majorité de points dans la zone facile, c’est le bon dosage.' : ''}</p>
     </section>
 
     ${hrPts.length >= 2 ? `

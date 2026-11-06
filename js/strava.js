@@ -97,7 +97,7 @@ export async function syncStrava({ force = false } = {}) {
   const s = store.strava;
   if (!force && s.lastSync && Date.now() - s.lastSync < SYNC_EVERY) return null;
   const access = await token();
-  const fromPlan = new Date(`${addDays(store.plan.start, -14)}T00:00:00`).getTime() / 1000;
+  const fromPlan = store.plan ? new Date(`${addDays(store.plan.start, -14)}T00:00:00`).getTime() / 1000 : 0;
   const after = Math.floor(Math.max(fromPlan, (s.lastSync || 0) / 1000 - 3 * 86400, Date.now() / 1000 - 6 * 86400));
   const runs = [];
   for (let page = 1; page <= 5; page += 1) {

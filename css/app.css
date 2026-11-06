@@ -308,6 +308,11 @@ a { color: inherit; }
 .table tr.is-ref th, .table tr.is-ref td { box-shadow: inset 0 -3px 0 var(--quality); }
 .table tr.is-far td { color: var(--ink-soft); }
 
+.welcome-steps { list-style: none; padding: 0; margin: 8px 0 18px; counter-reset: step; }
+.welcome-steps li { counter-increment: step; display: grid; grid-template-columns: 34px 1fr; padding: 12px 0; border-bottom: 1px solid var(--line); color: var(--ink-soft); }
+.welcome-steps li::before { content: counter(step); font: 700 24px/1.1 var(--font-cond); color: var(--ink); }
+.welcome-steps strong { color: var(--ink); }
+
 /* ---------- Analyse ---------- */
 .analyse-block { margin-top: 26px; }
 .analyse-block .section-title { margin-top: 0; }

@@ -1,20 +1,19 @@
 // Données stockées sur le téléphone (localStorage). Rien ne part sur un serveur,
 // sauf les échanges avec Strava quand tu connectes ton compte.
-import { buildDefaultPlan } from './plan-data.js';
 import { addDays, parseISO, toISO } from './util.js';
 
 const KEY = 'foulee.v1';
 const listeners = new Set();
 const API_CACHE_DAYS = 7; // règle de l'API Strava : données récupérées gardées 7 jours maximum
 
-const fresh = () => ({ version: 2, plan: buildDefaultPlan(), log: {}, activities: {}, history: [], tools: {}, strava: null });
+const fresh = () => ({ version: 2, plan: null, log: {}, activities: {}, history: [], tools: {}, strava: null });
 
 function load() {
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const data = JSON.parse(raw);
-      if (data && data.plan && data.log) return { ...fresh(), ...data, version: 2 };
+      if (data && data.log) return { ...fresh(), ...data, version: 2 };
     }
   } catch { /* stockage indisponible : on repart d'un état neuf */ }
   return fresh();
@@ -32,6 +31,7 @@ function persist() {
 
 export const store = {
   get plan() { return state.plan; },
+  get hasPlan() { return !!state.plan; },
   get log() { return state.log; },
   get history() { return state.history; },
   subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); },
@@ -87,7 +87,7 @@ export const store = {
 
   // Nouveau plan : l'ancien et son suivi sont archivés, les sorties sont gardées.
   replacePlan(plan) {
-    if (Object.keys(state.log).length) {
+    if (state.plan) {
       state.history.push({ plan: state.plan, log: state.log, archived: new Date().toISOString() });
     }
     state.plan = plan;
@@ -100,7 +100,7 @@ export const store = {
   restorePrevious() {
     const prev = state.history.pop();
     if (!prev) return false;
-    state.history.push({ plan: state.plan, log: state.log, archived: new Date().toISOString() });
+    if (state.plan) state.history.push({ plan: state.plan, log: state.log, archived: new Date().toISOString() });
     state.plan = prev.plan;
     state.log = prev.log;
     persist();
@@ -121,12 +121,27 @@ export const store = {
     return JSON.stringify({ app: 'foulee', exported: new Date().toISOString(), ...rest, activities }, null, 2);
   },
 
+  // Deux sortes de fichiers : un programme seul (il remplace le programme actuel, qui est archivé)
+  // ou une sauvegarde complète (elle remplace toutes les données).
   importJSON(text) {
-    const data = JSON.parse(text);
-    if (data.app !== 'foulee' || !data.plan || !data.log) throw new Error('Ce fichier n’est pas une sauvegarde Foulée.');
+    let data;
+    try { data = JSON.parse(text); } catch { throw new Error('Ce fichier n’est pas un fichier Foulée.'); }
+    if (data?.app !== 'foulee') throw new Error('Ce fichier n’est pas un fichier Foulée.');
+    if (data.kind === 'programme') {
+      if (!data.plan?.weeks?.length) throw new Error('Ce programme est vide.');
+      this.replacePlan(data.plan);
+      return 'programme';
+    }
+    if (!data.log) throw new Error('Cette sauvegarde est incomplète.');
     state = { ...fresh(), ...data, strava: state.strava, version: 2 };
-    delete state.app; delete state.exported;
+    delete state.app; delete state.exported; delete state.kind;
     persist();
+    return 'sauvegarde';
+  },
+
+  // Le programme seul, pour le garder ou le donner à quelqu'un.
+  exportPlanJSON() {
+    return JSON.stringify({ app: 'foulee', kind: 'programme', version: 2, exported: new Date().toISOString(), plan: state.plan }, null, 2);
   },
 
   reset() { state = { ...fresh(), strava: state.strava }; persist(); },
@@ -143,6 +158,7 @@ function purgeApiCache() {
 // Les jours du programme sont indicatifs : une séance décalée dans la semaine est retrouvée.
 function linkActivities() {
   const plan = state.plan;
+  if (!plan) return 0;
   const used = new Set(Object.values(state.log).map((e) => e.activityId).filter(Boolean));
   const runs = Object.values(state.activities)
     .filter((a) => !used.has(a.id))
@@ -179,6 +195,7 @@ function linkActivities() {
 // Toutes les séances du plan, avec leur date réelle, dans l'ordre.
 export function allSessions(plan = state.plan) {
   const out = [];
+  if (!plan) return out;
   for (const w of plan.weeks) {
     for (const s of w.sessions) {
       out.push({ ...s, week: w.n, light: w.light, date: addDays(plan.start, (w.n - 1) * 7 + s.day) });

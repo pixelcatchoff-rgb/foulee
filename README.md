@@ -24,7 +24,6 @@ Ouvre le site dans Safari sur iPhone, touche Partager, puis « Sur l’écran d�
 | --- | --- |
 | `js/app.js` | Écrans et navigation |
 | `js/store.js` | Données sur le téléphone, rattachement des sorties aux séances |
-| `js/plan-data.js` | Programme de départ (3 km en 17 min) |
 | `js/generator.js` | Générateur de programme |
 | `js/steps.js` | Étapes des séances et guide Apple Watch |
 | `js/tools.js` | Calculateurs |

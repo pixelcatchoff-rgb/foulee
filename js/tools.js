@@ -62,9 +62,9 @@ const readDist = (root, prefix) => {
 /* ---------- Écran ---------- */
 
 export function viewTools(saved, reference) {
-  const a = saved.calc || { solve: 'pace', dist: 3000, time: 1020, pace: 340 };
-  const sp = saved.splits || { dist: 3000, time: 1020, step: 200 };
-  const pr = saved.predict || reference;
+  const a = saved.calc || { solve: 'pace', dist: 5000, time: 1800, pace: 360 };
+  const sp = saved.splits || { dist: 5000, time: 1800, step: 1000 };
+  const pr = saved.predict || reference || { dist: 5000, time: null };
 
   return `
     <h1 class="page-title">Outils</h1>
@@ -101,7 +101,7 @@ export function viewTools(saved, reference) {
 
     <section class="tool" data-tool="predict">
       <h2 class="section-title">Prédictions et allures</h2>
-      <p class="hint">Entre un chrono récent : test 3 km, course ou sortie à fond. ${reference.fromLog ? 'Ton dernier test est déjà rempli.' : ''}</p>
+      <p class="hint">Entre un chrono récent : test 3 km, course ou sortie à fond. ${reference?.fromLog && !saved.predict ? 'Ton dernier test est déjà rempli.' : ''}</p>
       ${distField('p_dist', pr.dist, 'Distance courue')}
       <div class="field"><span>Ton temps</span>${timeInputs('p_time', pr.time, { hours: true, label: 'Ton temps' })}</div>
       <h3 class="sub-title">Temps probables</h3>
