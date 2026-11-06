@@ -30,6 +30,13 @@ export const store = {
 
   entry(id) { return state.log[id] || null; },
 
+  // Valeurs des calculateurs : enregistrées sans redessiner l'écran.
+  get tools() { return state.tools || {}; },
+  saveTools(patch) {
+    state.tools = { ...(state.tools || {}), ...patch };
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* mode privé */ }
+  },
+
   save(id, data) {
     state.log[id] = { ...(state.log[id] || {}), ...data, done: true, updated: Date.now() };
     persist();
@@ -50,7 +57,7 @@ export const store = {
   importJSON(text) {
     const data = JSON.parse(text);
     if (data.app !== 'foulee' || !data.plan || !data.log) throw new Error('Ce fichier n’est pas une sauvegarde Foulée.');
-    state = { version: 1, plan: data.plan, log: data.log };
+    state = { version: 1, plan: data.plan, log: data.log, tools: data.tools || {} };
     persist();
   },
 

@@ -1,5 +1,6 @@
 import { store, allSessions, findSession, phaseOf } from './store.js';
 import { describe, watchGuide, totalTime } from './steps.js';
+import { viewTools, bindTools } from './tools.js';
 import {
   todayISO, daysBetween, dateLong, dateShort, dayMonth, clock, duration, parseClock, esc, addDays, rangeLabel,
 } from './util.js';
@@ -313,6 +314,20 @@ function viewTests() {
   `;
 }
 
+/* ---------- Écran : Outils ---------- */
+
+// Chrono de référence : dernier test 3 km saisi, sinon le point de départ (≈ 6:20/km).
+function referencePerf() {
+  const tests = allSessions().filter((s) => (s.type === 'test' || s.type === 'objectif') && store.entry(s.id)?.time3k);
+  const last = tests[tests.length - 1];
+  if (last) return { dist: 3000, time: store.entry(last.id).time3k, fromLog: true };
+  return { dist: 3000, time: 1140, fromLog: false };
+}
+
+function viewToolsScreen() {
+  return viewTools(store.tools, referencePerf());
+}
+
 /* ---------- Écran : Réglages ---------- */
 
 function viewSettings() {
@@ -332,14 +347,14 @@ function viewSettings() {
     </section>
     <section class="panel">
       <h2>Bientôt</h2>
-      <p>Import de l’archive Strava et analyse de tes sorties, calculateurs d’allure, générateur de plan et connexion Strava.</p>
+      <p>Import de l’archive Strava et analyse de tes sorties, générateur de plan et connexion Strava.</p>
     </section>
     <section class="panel panel-danger">
       <h2>Repartir de zéro</h2>
       <p>Efface toutes les séances cochées et recharge le programme de départ.</p>
       <button class="btn btn-ghost" data-reset>Effacer mes données</button>
     </section>
-    <p class="hint">Foulée, version 0.1</p>
+    <p class="hint">Foulée, version 0.2</p>
   `;
 }
 
@@ -350,6 +365,7 @@ const routes = [
   [/^#\/programme$/, viewPlan, 'plan'],
   [/^#\/seance\/([\w-]+)$/, viewSession, 'plan'],
   [/^#\/tests$/, viewTests, 'tests'],
+  [/^#\/outils$/, viewToolsScreen, 'tools'],
   [/^#\/reglages$/, viewSettings, 'settings'],
 ];
 
@@ -359,7 +375,10 @@ function render() {
   for (const [re, view, tab] of routes) {
     const m = hash.match(re);
     if (m) {
+      // Les calculateurs ne se redessinent pas à chaque sauvegarde (on garderait le clavier ouvert).
+      if (tab === 'tools' && hash === lastHash && $view.querySelector('[data-tool]')) return;
       $view.innerHTML = view(...m.slice(1));
+      if (tab === 'tools') bindTools($view, (patch) => store.saveTools(patch));
       $nav.querySelectorAll('a').forEach((a) => a.toggleAttribute('aria-current', a.dataset.tab === tab));
       if (hash !== lastHash) {
         window.scrollTo(0, 0);

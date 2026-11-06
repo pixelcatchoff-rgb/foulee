@@ -1,5 +1,5 @@
 // Fonctionne hors connexion : les fichiers de l'appli sont gardés en cache.
-const VERSION = 'foulee-0.1.1';
+const VERSION = 'foulee-0.2.0';
 const SHELL = [
   './',
   './index.html',
@@ -10,6 +10,7 @@ const SHELL = [
   './js/steps.js',
   './js/util.js',
   './js/plan-data.js',
+  './js/tools.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/apple-touch-icon.png',
