@@ -2,7 +2,9 @@ import { store, allSessions, findSession, phaseOf } from './store.js';
 import { describe, watchGuide, totalTime } from './steps.js';
 import { viewTools, bindTools, DISTANCES } from './tools.js';
 import { viewAnalyse } from './analyse.js';
-import { viewParcours, mountParcours, unmountParcours, handleParcoursClick } from './parcours.js';
+import {
+  viewParcours, mountParcours, unmountParcours, handleParcoursClick, handleParcoursInput,
+} from './parcours.js';
 import { sessionDistance } from './routes.js';
 import {
   viewLive, mountLive, unmountLive, viewActivity, mountActivity, liveRun, start as liveStart, pause as livePause,
@@ -706,6 +708,7 @@ document.addEventListener('click', (ev) => {
 });
 
 document.addEventListener('change', async (ev) => {
+  if (handleParcoursInput(ev, $view.querySelector('[data-parcours]'))) { ev.target.blur(); return; }
   if (ev.target.matches('[data-voice]')) { setVoice(ev.target.checked); return; }
   if (ev.target.matches('[data-import-csv]')) {
     const file = ev.target.files[0];
@@ -731,6 +734,7 @@ document.addEventListener('change', async (ev) => {
 });
 
 document.addEventListener('input', (ev) => {
+  if (handleParcoursInput(ev, $view.querySelector('[data-parcours]'))) return;
   const gen = ev.target.closest('[data-gen]');
   if (!gen) return;
   // Le nombre de jours cochés suit le nombre de séances

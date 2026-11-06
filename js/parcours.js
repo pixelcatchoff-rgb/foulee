@@ -17,14 +17,14 @@ export function viewParcours(sessionId) {
   st = { sessionId: s?.id || null, target, start: null, loops: [], selected: 0, lines: [], busy: false };
   return `
     <div data-parcours>
-      <a class="back" href="${s ? `#/seance/${s.id}` : '#/'}" data-back>${s ? 'Séance' : 'Accueil'}</a>
+      <a class="back" href="#/course" data-back>Courir</a>
       <h1 class="page-title">Parcours</h1>
       <p class="lede">${s ? `${esc(s.title)} : environ ${km(planned)} km en tout, échauffement compris.` : 'Des boucles qui partent du point choisi et y reviennent : ta position, ou n’importe où sur la carte.'}</p>
       <div class="field">
         <span>Longueur de la boucle</span>
         <div class="stepper">
           <button type="button" class="btn" data-target-step="-500" aria-label="500 m de moins">−</button>
-          <output data-target>${km(target)} km</output>
+          <span class="unit-input stepper-input"><input data-target inputmode="decimal" autocomplete="off" enterkeyhint="search" aria-label="Longueur de la boucle en km" value="${km(target)}"><em>km</em></span>
           <button type="button" class="btn" data-target-step="500" aria-label="500 m de plus">+</button>
         </div>
       </div>
@@ -178,6 +178,22 @@ function select(root, i) {
   paintList(root);
 }
 
+// Longueur tapée au clavier : nouvelle recherche dès que la saisie est terminée
+export function handleParcoursInput(ev, root) {
+  if (!st || !root || !ev.target.matches('[data-target]')) return false;
+  const v = parseFloat(String(ev.target.value).replace(',', '.'));
+  if (!Number.isFinite(v) || v < 1 || v > 30) return true;
+  const target = Math.round((v * 1000) / 100) * 100;
+  const changed = target !== st.target;
+  if (!changed && !st.pending) return true;
+  st.target = target;
+  store.saveTools({ routeTarget: st.target });
+  clearTimeout(st.debounce);
+  st.pending = true;
+  st.debounce = setTimeout(() => { st.pending = false; search(root, undefined, true); }, ev.type === 'change' ? 0 : 1200);
+  return true;
+}
+
 export function handleParcoursClick(ev, root) {
   if (!st || !root) return false;
   const t = ev.target.closest('[data-target-step],[data-route-pick],[data-route-run],[data-route-gpx],[data-route-more],[data-route-here],[data-route-me]');
@@ -190,9 +206,10 @@ export function handleParcoursClick(ev, root) {
   } else if (t.dataset.targetStep) {
     st.target = Math.max(1000, Math.min(30000, st.target + Number(t.dataset.targetStep)));
     store.saveTools({ routeTarget: st.target });
-    root.querySelector('[data-target]').textContent = `${km(st.target)} km`;
+    root.querySelector('[data-target]').value = km(st.target);
     clearTimeout(st.debounce);
-    st.debounce = setTimeout(() => search(root, undefined, true), 700);
+    st.pending = true;
+    st.debounce = setTimeout(() => { st.pending = false; search(root, undefined, true); }, 700);
   } else if (t.dataset.routePick) {
     select(root, Number(t.dataset.routePick));
   } else if ('routeMore' in t.dataset) {
