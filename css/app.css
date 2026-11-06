@@ -40,6 +40,11 @@
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
+html { touch-action: manipulation; }
+/* Cases à cocher cachées des sélecteurs : gardées dans leur bouton, jamais hors écran */
+.segmented label, .daypick label, .rpe-scale label { position: relative; }
+.segmented input, .daypick input, .rpe-scale input { left: 0; top: 0; width: 1px; height: 1px; margin: 0; }
+body { overflow-x: hidden; }
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
@@ -355,6 +360,16 @@ a { color: inherit; }
 @media (prefers-color-scheme: dark) {
   .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9) saturate(.6); }
 }
+
+/* ---------- Courir (accueil) ---------- */
+.hub { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 10px; }
+.hub-card {
+  display: grid; gap: 4px; text-decoration: none; padding: 16px 16px 16px 18px;
+  border-radius: var(--radius-l); background: var(--surface); border: 1px solid var(--line); border-left: 6px solid var(--accent);
+}
+.hub-title { font: 700 26px/1.1 var(--font-cond); }
+.hub-text { color: var(--ink-soft); font-size: 15px; }
+.nav-run[aria-current] svg { stroke: var(--easy); }
 
 /* ---------- Parcours ---------- */
 .hero-link { display: inline-block; margin-top: 14px; font-weight: 600; }

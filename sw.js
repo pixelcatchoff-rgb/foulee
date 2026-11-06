@@ -1,5 +1,5 @@
 // Fonctionne hors connexion : les fichiers de l'appli sont gardés en cache.
-const VERSION = 'foulee-1.3.1';
+const VERSION = 'foulee-1.4.0';
 const SHELL = [
   './',
   './index.html',

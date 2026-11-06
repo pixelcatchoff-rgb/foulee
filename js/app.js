@@ -351,6 +351,38 @@ function viewAnalyseScreen() {
   return viewAnalyse(context(), stravaBlock());
 }
 
+/* ---------- Écran : Courir (accueil) ---------- */
+
+function viewRunHub() {
+  const ctx = context();
+  const next = ctx.empty ? null : ctx.next;
+  const live = liveRun();
+  const going = live && (live.status === 'running' || live.status === 'paused' || live.status === 'done');
+  const kmNext = next ? (sessionDistance(next, ctx.plan) / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) : null;
+  return `
+    <h1 class="page-title">Courir</h1>
+    ${going ? `<a class="notice notice-live" href="#/courir">${live.status === 'done' ? 'Ta dernière course n’est pas enregistrée : touche pour l’enregistrer.' : 'Course en cours : touche pour y revenir.'}</a>` : ''}
+    ${next ? `<p class="lede">Prochaine séance : ${esc(next.title)}, ${next.date === ctx.t ? 'aujourd’hui' : dateLong(next.date).toLowerCase()}.</p>` : '<p class="lede">Lance une sortie suivie par GPS, ou trouve une boucle autour de toi.</p>'}
+    <ul class="hub">
+      <li><a class="hub-card t-easy" href="${next ? `#/courir/${next.id}` : '#/courir'}">
+        <span class="hub-title">Démarrer une course</span>
+        <span class="hub-text">${next ? 'Séance guidée étape par étape, avec la voix.' : 'Sortie libre : carte, chrono, allure, annonces à chaque km.'}</span>
+      </a></li>
+      ${next ? `<li><a class="hub-card t-long" href="#/courir">
+        <span class="hub-title">Sortie libre</span>
+        <span class="hub-text">Sans séance : carte, chrono, allure, annonces à chaque km.</span>
+      </a></li>` : ''}
+      <li><a class="hub-card t-quality" href="${next ? `#/parcours/${next.id}` : '#/parcours'}">
+        <span class="hub-title">Trouver un parcours</span>
+        <span class="hub-text">${next ? `Trois boucles de ${kmNext} km autour de toi, ou de l’endroit choisi sur la carte.` : 'Trois boucles autour de toi, ou de l’endroit choisi sur la carte.'}</span>
+      </a></li>
+      <li><a class="hub-card t-goal" href="#/outils">
+        <span class="hub-title">Calculateurs</span>
+        <span class="hub-text">Allure, temps de passage, prédictions de chrono.</span>
+      </a></li>
+    </ul>`;
+}
+
 /* ---------- Écran : Outils ---------- */
 
 // Chrono de référence : dernier test saisi, sinon rien.
@@ -536,7 +568,7 @@ function viewSettings() {
       <p>Efface ton programme, tes séances cochées et tes sorties importées. L’appli revient à zéro.</p>
       <button class="btn btn-ghost" data-reset>Effacer mes données</button>
     </section>
-    <p class="hint">Foulée, version 1.3</p>
+    <p class="hint">Foulée, version 1.4</p>
   `;
 }
 
@@ -548,9 +580,10 @@ const routes = [
   [/^#\/seance\/([\w-]+)$/, viewSession, 'plan'],
   [/^#\/nouveau-programme$/, viewGenerator, 'plan'],
   [/^#\/(?:analyse|tests)$/, viewAnalyseScreen, 'analyse'],
-  [/^#\/outils$/, viewToolsScreen, 'tools'],
-  [/^#\/courir(?:\/([\w-]+))?$/, (sid) => viewLive(sid), 'live'],
-  [/^#\/parcours(?:\/([\w-]+))?$/, (sid) => viewParcours(sid), 'live'],
+  [/^#\/course$/, viewRunHub, 'run'],
+  [/^#\/outils$/, viewToolsScreen, 'run'],
+  [/^#\/courir(?:\/([\w-]+))?$/, (sid) => viewLive(sid), 'run'],
+  [/^#\/parcours(?:\/([\w-]+))?$/, (sid) => viewParcours(sid), 'run'],
   [/^#\/sortie\/(.+)$/, (id) => viewActivity(decodeURIComponent(id)), 'analyse'],
   [/^#\/reglages$/, viewSettings, 'settings'],
 ];
@@ -569,7 +602,7 @@ function render() {
       if ($view.querySelector('[data-live]')) mountLive($view.querySelector('[data-live]'));
       if ($view.querySelector('[data-parcours]')) mountParcours($view.querySelector('[data-parcours]'));
       if (hash.startsWith('#/sortie/')) mountActivity($view, decodeURIComponent(m[1]));
-      if (tab === 'tools') bindTools($view, (patch) => store.saveTools(patch));
+      if ($view.querySelector('[data-tool]')) bindTools($view, (patch) => store.saveTools(patch));
       const gen = $view.querySelector('[data-gen]');
       if (gen) genPreview(gen);
       $nav.querySelectorAll('a').forEach((a) => a.toggleAttribute('aria-current', a.dataset.tab === tab));
@@ -751,6 +784,16 @@ async function runSync(force = false) {
     if (force) { lastHash = null; render(); }
   }
 }
+
+// Pas de zoom par pincement sur l'appli (la carte garde le sien)
+for (const type of ['gesturestart', 'gesturechange']) {
+  document.addEventListener(type, (e) => {
+    if (!e.target.closest?.('.leaflet-container')) e.preventDefault();
+  }, { passive: false });
+}
+document.addEventListener('touchmove', (e) => {
+  if (e.touches.length > 1 && !e.target.closest?.('.leaflet-container')) e.preventDefault();
+}, { passive: false });
 
 store.subscribe(render);
 window.addEventListener('hashchange', render);

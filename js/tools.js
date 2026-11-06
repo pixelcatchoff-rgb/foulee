@@ -67,7 +67,8 @@ export function viewTools(saved, reference) {
   const pr = saved.predict || reference || { dist: 5000, time: null };
 
   return `
-    <h1 class="page-title">Outils</h1>
+    <a class="back" href="#/course" data-back>Courir</a>
+    <h1 class="page-title">Calculateurs</h1>
     <p class="lede">Les calculs se font pendant que tu tapes. Tes dernières valeurs sont gardées.</p>
 
     <section class="tool" data-tool="calc" data-solve="${a.solve}">
