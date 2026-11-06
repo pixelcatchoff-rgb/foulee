@@ -478,7 +478,7 @@ const routes = [
   [/^#\/programme$/, viewPlan, 'plan'],
   [/^#\/seance\/([\w-]+)$/, viewSession, 'plan'],
   [/^#\/nouveau-programme$/, viewQuiz, 'plan'],
-  [/^#\/(?:analyse|tests)$/, viewAnalyseScreen, 'analyse'],
+  [/^#\/analyse$/, viewAnalyseScreen, 'analyse'],
   [/^#\/course$/, viewRunHub, 'run'],
   [/^#\/outils$/, viewToolsScreen, 'run'],
   [/^#\/courir(?:\/([\w-]+))?$/, (sid) => viewLive(sid), 'run'],

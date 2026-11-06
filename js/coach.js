@@ -596,7 +596,7 @@ function racePace(ctx) {
   }
   const vol = lerp(goal.gVol[0], goal.gVol[1], f) * (ctx.level <= 1 ? 0.75 : 1);
   const d = goal.reps[clamp(k, 0, goal.reps.length - 1)];
-  const n = clamp(Math.round(vol / d), 2, 10);
+  const n = clamp(Math.ceil(vol / d - 0.15), 2, 10);
   const repSec = (d / 1000) * Z.G[0];
   return {
     min: 25 + Math.round((n * repSec * 1.8) / 60),

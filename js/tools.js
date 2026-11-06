@@ -1,12 +1,11 @@
 // Onglet Outils : trois calculateurs mis à jour en direct pendant la saisie.
 import { clock } from './util.js';
+import { vdotFromRace, raceTime, zones, ZONE_INFO } from './coach.js';
 
 export const DISTANCES = [
   [1000, '1 km'], [3000, '3 km'], [5000, '5 km'], [10000, '10 km'], [21097, 'Semi'], [42195, 'Marathon'],
 ];
 
-const RIEGEL = 1.06;
-export const predict = (t1, d1, d2) => t1 * Math.pow(d2 / d1, RIEGEL);
 
 const num = (v) => {
   const n = parseFloat(String(v ?? '').replace(',', '.'));
@@ -109,7 +108,7 @@ export function viewTools(saved, reference) {
       <table class="table" data-out="predict"></table>
       <h3 class="sub-title">Tes allures d’entraînement</h3>
       <table class="table" data-out="zones"></table>
-      <p class="hint">Estimation par la formule de Riegel, fiable jusqu’à environ 4 fois la distance courue. Au-delà, prends-la comme un ordre de grandeur.</p>
+      <p class="hint">Calcul par la méthode VDOT de Jack Daniels, la même que pour ton programme. Les prédictions loin de la distance courue (grisées) sont un ordre de grandeur.</p>
     </section>
   `;
 }
@@ -156,17 +155,6 @@ function updateSplits(root) {
   return { dist, time, step: Number(root.querySelector('[name=step]:checked').value) };
 }
 
-export function zonesFrom(dist, time) {
-  const p3 = predict(time, dist, 3000) / 3;
-  const p10 = predict(time, dist, 10000) / 10;
-  return [
-    ['Facile', 'Footings et sortie longue', [p10 * 1.22, p10 * 1.3]],
-    ['Seuil', 'Allure 10 km, blocs de 7 à 20 min', [p10, p10 + 10]],
-    ['Allure 3 km', '600 m à 1 500 m', [p3, p3]],
-    ['Fractionné court', '200 m et 400 m', [p3 - 15, p3 - 8]],
-  ];
-}
-
 function updatePredict(root) {
   const dist = readDist(root, 'p_dist');
   const time = readTime(root, 'p_time');
@@ -177,17 +165,25 @@ function updatePredict(root) {
     tZones.innerHTML = '';
     return null;
   }
+  const vdot = vdotFromRace(dist, time);
+  if (!(vdot > 15 && vdot < 90)) {
+    tPred.innerHTML = '<caption class="result-empty">Ce chrono semble incorrect : vérifie la distance et le temps.</caption>';
+    tZones.innerHTML = '';
+    return null;
+  }
   tPred.innerHTML = `
+    <caption class="table-caption">Indice VDOT ${vdot.toLocaleString('fr-FR', { maximumFractionDigits: 1 })}</caption>
     <thead><tr><th scope="col">Distance</th><th scope="col">Temps</th><th scope="col">Allure</th></tr></thead>
     <tbody>${DISTANCES.map(([d, l]) => {
-      const t = predict(time, dist, d);
+      const t = raceTime(vdot, d);
       const far = d / dist > 4 || dist / d > 4;
       return `<tr class="${d === dist ? 'is-ref' : ''}${far ? ' is-far' : ''}"><th scope="row">${l}</th><td>${clock(t)}</td><td>${clock(t / (d / 1000))}/km</td></tr>`;
     }).join('')}</tbody>`;
+  const Z = zones(vdot);
   tZones.innerHTML = `
     <thead><tr><th scope="col">Zone</th><th scope="col">Allure</th></tr></thead>
-    <tbody>${zonesFrom(dist, time).map(([n, use, [a, b]]) => `
-      <tr><th scope="row">${n}<small>${use}</small></th><td>${Math.round(a) === Math.round(b) ? clock(a) : `${clock(a)}–${clock(b)}`}/km</td></tr>`).join('')}</tbody>`;
+    <tbody>${['E', 'M', 'T', 'I', 'R'].map((k) => `
+      <tr><th scope="row">${ZONE_INFO[k].name}<small>${ZONE_INFO[k].use}</small></th><td>${clock(Z[k][0])}–${clock(Z[k][1])}/km</td></tr>`).join('')}</tbody>`;
   return { dist, time };
 }
 

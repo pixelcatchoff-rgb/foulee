@@ -144,6 +144,8 @@ export const store = {
     if (data.kind === 'programme') {
       if (!data.plan?.weeks?.length) throw new Error('Ce programme est vide.');
       this.replacePlan(data.plan);
+      // Un fichier programme peut aussi apporter des sorties (archive Strava)
+      if (Array.isArray(data.activities) && data.activities.length) this.addActivities(data.activities);
       return 'programme';
     }
     if (!data.log) throw new Error('Cette sauvegarde est incomplète.');

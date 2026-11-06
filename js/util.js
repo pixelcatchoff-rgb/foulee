@@ -64,16 +64,6 @@ export function paceRange(p) {
   return p[0] === p[1] ? `${clock(p[0])}/km` : `${clock(p[0])}–${clock(p[1])}/km`;
 }
 
-// "3:24", "1:02:10" ou "45" (minutes) -> secondes
-export function parseClock(str) {
-  if (!str) return null;
-  const parts = String(str).trim().replace(',', '.').split(':').map(Number);
-  if (parts.some((n) => Number.isNaN(n))) return null;
-  if (parts.length === 1) return Math.round(parts[0] * 60);
-  if (parts.length === 2) return parts[0] * 60 + parts[1];
-  return parts[0] * 3600 + parts[1] * 60 + parts[2];
-}
-
 export function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
