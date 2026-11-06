@@ -1,5 +1,5 @@
 // Fonctionne hors connexion : les fichiers de l'appli sont gardés en cache.
-const VERSION = 'foulee-1.5.0';
+const VERSION = 'foulee-2.0.0';
 const SHELL = [
   './',
   './index.html',
@@ -14,7 +14,8 @@ const SHELL = [
   './js/strava-csv.js',
   './js/strava.js',
   './js/config.js',
-  './js/generator.js',
+  './js/coach.js',
+  './js/quiz.js',
   './js/live.js',
   './js/map.js',
   './js/routes.js',

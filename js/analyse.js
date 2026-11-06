@@ -101,27 +101,27 @@ function testsBlock(ctx) {
   const done = results.filter((r) => r.t);
   const chart = done.length ? timeChart(
     done.map((r) => ({ date: store.entry(r.s.id).date || r.s.date, v: r.t / (testDist(r.s) / 1000) })),
-    { invert: true, fmt: (v) => clock(v), label: 'Allure des tests', refLine: tests.map((s) => ({ date: s.date, v: s.repere / (testDist(s) / 1000) })) },
+    { invert: true, fmt: (v) => clock(v), label: 'Allure des tests', refLine: tests.filter((s) => s.repere).map((s) => ({ date: s.date, v: s.repere / (testDist(s) / 1000) })) },
   ) : '';
 
   return `
     <section class="analyse-block">
       <h2 class="section-title">Tests</h2>
-      <p class="hint">Repères vers l’objectif ${esc(g.label)}. ${esc(store.plan.baseline ? `Point de départ : ${store.plan.baseline}` : '')}</p>
+      <p class="hint">Repères vers l’objectif : ${esc(g.label)}. ${esc(store.plan.baseline ? `Point de départ : ${store.plan.baseline}.` : '')}</p>
       ${chart ? `${chart}<p class="legend"><span class="lg-dot"></span>tes tests <span class="lg-ref"></span>repères (allure par km)</p>` : ''}
       <ul class="tests">
         ${results.map(({ s, t }) => {
-          const gap = t ? t - s.repere : null;
+          const gap = t && s.repere ? t - s.repere : null;
           const d = testDist(s);
           return `
           <li class="test ${s.type === 'objectif' ? 'is-goal' : ''}">
             <a href="#/seance/${s.id}">
               <span class="test-name">${s.type === 'objectif' ? 'Objectif' : esc(s.title)}</span>
               <span class="test-date">${dateShort(s.date)}</span>
-              <span class="test-target">Repère ${clock(s.repere)}</span>
+              <span class="test-target">${s.repere ? `Repère ${clock(s.repere)}` : 'Objectif : finir'}</span>
               <span class="test-result">${t ? clock(t) : '—'}</span>
               <span class="test-gap ${gap === null ? '' : gap <= 0 ? 'is-good' : gap <= 30 ? 'is-close' : 'is-far'}">
-                ${gap === null ? (s.date < ctx.t ? 'pas de chrono saisi' : 'à venir') : gap <= 0 ? `${clock(-gap)} d’avance` : `${clock(gap)} de retard`}
+                ${gap === null ? (t ? 'terminé' : s.date < ctx.t ? 'pas de chrono saisi' : 'à venir') : gap <= 0 ? `${clock(-gap)} d’avance` : `${clock(gap)} de retard`}
               </span>
               ${t ? `<span class="test-pace">${clock(t / (d / 1000))}/km</span>` : ''}
             </a>

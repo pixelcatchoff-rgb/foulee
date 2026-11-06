@@ -102,6 +102,14 @@ export const store = {
     persist();
   },
 
+  // Modifie le programme en place (ex. nouvelles allures après un test)
+  adjustPlan(fn) {
+    if (!state.plan) return null;
+    const r = fn(state.plan);
+    persist();
+    return r;
+  },
+
   // Revient au dernier programme archivé ; le programme actuel est archivé à sa place.
   restorePrevious() {
     const prev = state.history.pop();

@@ -11,9 +11,8 @@ import {
   resume as liveResume, finish as liveFinish, discard as liveDiscard, saveRun, setVoice,
 } from './live.js';
 import { readStravaCSV } from './strava-csv.js';
-import {
-  buildPlan, feasibility, validate, nextSunday, goalLabel, GOALS, WEEKDAYS,
-} from './generator.js';
+import { viewQuiz, handleQuizClick, handleQuizInput, setQuizToday } from './quiz.js';
+import { vdotFromRace, repace, zones as coachZones, ZONE_INFO } from './coach.js';
 import {
   stravaConfigured, stravaConnected, connectStrava, handleStravaCallback, syncStrava, disconnectStrava,
 } from './strava.js';
@@ -27,6 +26,7 @@ const $nav = document.getElementById('nav');
 // Pour tester : ?today=2026-12-10 simule une autre date.
 const forcedToday = new URLSearchParams(location.search).get('today');
 const today = () => forcedToday || todayISO();
+setQuizToday(today);
 
 const TYPE = {
   facile: { label: 'Footing', cls: 't-easy' },
@@ -165,12 +165,17 @@ function viewToday() {
     </a>` : '';
 
   const upcoming = ctx.sessions.filter((x) => x.date >= ctx.t && x !== s).slice(0, 3);
+  // Footings notés trop durs : le signe classique d'un entraînement trop rapide
+  const easyLogged = ctx.sessions.filter((x) => (x.type === 'facile' || x.type === 'longue') && store.entry(x.id)?.rpe).slice(-3);
+  const tooHard = easyLogged.length === 3 && easyLogged.every((x) => store.entry(x.id).rpe >= 7);
+  const hardNotice = tooHard ? `<p class="notice">Tes 3 derniers footings étaient notés 7/10 ou plus. Ralentis : en endurance facile, tu dois pouvoir parler. C’est ce qui te fera progresser.</p>` : '';
 
   return `
     ${banner}
     ${lead}
     ${hero}
     ${missed}
+    ${hardNotice}
     ${lane(ctx)}
     <dl class="stats">
       <div><dt>Séances faites</dt><dd>${ctx.doneCount}<small>/${ctx.sessions.length}</small></dd></div>
@@ -206,6 +211,20 @@ function sessionRow(s, ctx) {
     </li>`;
 }
 
+// Profil et allures du coureur, recalculées après chaque test
+function pacesCard(plan) {
+  const c = plan.coach;
+  const Z = coachZones(c.vdot);
+  const rows = ['E', 'T', 'I', 'R'].map((k) => `<tr><th scope="row">${ZONE_INFO[k].name}<small>${ZONE_INFO[k].use}</small></th><td>${clock(Z[k][0])}–${clock(Z[k][1])}</td></tr>`);
+  if (c.goalPace) rows.splice(2, 0, `<tr><th scope="row">Objectif<small>Allure du jour J</small></th><td>${clock(c.goalPace)}</td></tr>`);
+  return `
+    <details class="paces">
+      <summary><span>Mes allures</span><small>${esc(c.label)}${c.estimated && Math.abs(c.vdot - c.vdot0) < 0.3 ? ' · estimées' : ''}</small></summary>
+      <table class="table zones-table"><tbody>${rows.join('')}</tbody></table>
+      <p class="hint">${c.estimated && Math.abs(c.vdot - c.vdot0) < 0.3 ? 'Allures estimées : ton premier test les ajustera.' : 'Allures calculées d’après ton dernier chrono (méthode VDOT).'} Chaque test saisi recale le reste du programme.</p>
+    </details>`;
+}
+
 function viewPlan() {
   const ctx = context();
   if (ctx.empty) return `<h1 class="page-title">Programme</h1>${welcome('Pas encore de programme')}`;
@@ -214,11 +233,12 @@ function viewPlan() {
     <h1 class="page-title">Programme</h1>
     <p class="lede">${esc(plan.goal.label)} le ${dayMonth(ctx.goalDate)}${plan.goal.secondary ? `, puis ${esc(plan.goal.secondary)}` : ''}. Un jour de repos entre deux séances.</p>
     <a class="btn btn-small" href="#/nouveau-programme">Nouveau programme</a>
+    ${plan.coach ? pacesCard(plan) : ''}
     ${plan.phases.map((p) => `
       <section class="phase">
         <header class="phase-head">
           <h2>${esc(p.name)}</h2>
-          <p>Semaines ${p.from} à ${p.to}. ${esc(p.aim)}</p>
+          <p>${p.from === p.to ? `Semaine ${p.from}` : `Semaines ${p.from} à ${p.to}`}. ${esc(p.aim)}</p>
         </header>
         ${plan.weeks.filter((w) => w.n >= p.from && w.n <= p.to).map((w) => {
           const sess = ctx.sessions.filter((s) => s.week === w.n);
@@ -399,130 +419,7 @@ function viewToolsScreen() {
   return viewTools(store.tools, referencePerf());
 }
 
-/* ---------- Écran : Nouveau programme ---------- */
-
-function genDefaults() {
-  const g = store.plan?.generated;
-  const ref = referencePerf() || g?.ref || { dist: 5000, time: null };
-  const t = today();
-  return {
-    goalDist: g?.goalDist ?? store.plan?.goal.distance ?? 5000,
-    goalTime: g?.goalTime ?? store.plan?.goal.time ?? null,
-    goalDate: g?.goalDate && g.goalDate > t ? g.goalDate : addDays(t, 7 * 16),
-    start: nextSunday(addDays(t, 1)),
-    perWeek: g?.perWeek ?? 3,
-    days: g?.days ?? [0, 2, 4],
-    longDay: g?.longDay ?? 0,
-    ref: { dist: ref.dist, time: ref.time },
-  };
-}
-
-function hmsInputs(prefix, sec, label) {
-  const h = sec >= 3600 ? Math.floor(sec / 3600) : '';
-  const m = sec ? Math.floor((sec % 3600) / 60) : '';
-  const s = sec ? String(sec % 60).padStart(2, '0') : '';
-  const cell = (n, v, unit, max) => `<span class="unit-input"><input name="${prefix}_${n}" inputmode="numeric" pattern="[0-9]*" maxlength="${max}" autocomplete="off" aria-label="${label}, ${unit}" value="${v}"><em>${n}</em></span>`;
-  return `<div class="time-pair has-hours">${cell('h', h, 'heures', 2)}${cell('min', m, 'minutes', 2)}${cell('s', s, 'secondes', 2)}</div>`;
-}
-
-function readHms(fd, prefix) {
-  const g = (n) => parseInt(fd.get(`${prefix}_${n}`), 10) || 0;
-  const t = g('h') * 3600 + g('min') * 60 + Math.min(59, g('s'));
-  return t || null;
-}
-
-function readGenForm(form) {
-  const fd = new FormData(form);
-  const days = fd.getAll('days').map(Number);
-  return {
-    goalDist: Number(fd.get('goalDist')),
-    goalTime: readHms(fd, 'gt'),
-    goalDate: fd.get('goalDate'),
-    start: fd.get('start'),
-    perWeek: Number(fd.get('perWeek')),
-    days,
-    longDay: Number(fd.get('longDay')),
-    ref: { dist: Number(fd.get('refDist')), time: readHms(fd, 'rt') },
-  };
-}
-
-function viewGenerator() {
-  const o = genDefaults();
-  const order = [1, 2, 3, 4, 5, 6, 0];
-  return `
-    <a class="back" href="${store.plan ? '#/programme' : '#/'}" data-back>${store.plan ? 'Programme' : 'Accueil'}</a>
-    <h1 class="page-title">Nouveau programme</h1>
-    <p class="lede">Une base pour courir régulièrement, de la vitesse, du travail à l’allure objectif, des tests en fin de phase et un affûtage.</p>
-    <form class="gen" data-gen>
-      <div class="field">
-        <span>Objectif</span>
-        <div class="segmented segmented-compact" role="radiogroup" aria-label="Distance objectif">
-          ${GOALS.map(([d, l]) => `<label><input type="radio" name="goalDist" value="${d}" ${o.goalDist === d ? 'checked' : ''}><span>${l}</span></label>`).join('')}
-        </div>
-      </div>
-      <div class="field"><span>Temps visé</span>${hmsInputs('gt', o.goalTime, 'Temps visé')}</div>
-      <div class="field-row field-row-even">
-        <label class="field"><span>Date de l’objectif</span><input type="date" name="goalDate" value="${o.goalDate}"></label>
-        <label class="field"><span>Début du programme</span><input type="date" name="start" value="${o.start}"></label>
-      </div>
-      <div class="field">
-        <span>Séances par semaine</span>
-        <div class="segmented segmented-compact" role="radiogroup" aria-label="Séances par semaine">
-          ${[3, 4].map((n) => `<label><input type="radio" name="perWeek" value="${n}" ${o.perWeek === n ? 'checked' : ''}><span>${n} séances</span></label>`).join('')}
-        </div>
-      </div>
-      <div class="field">
-        <span>Jours de course</span>
-        <div class="daypick" role="group" aria-label="Jours de course">
-          ${order.map((d) => `<label><input type="checkbox" name="days" value="${d}" ${o.days.includes(d) ? 'checked' : ''}><span>${WEEKDAYS[d]}</span></label>`).join('')}
-        </div>
-      </div>
-      <label class="field"><span>Sortie longue le</span>
-        <select name="longDay">${order.map((d) => `<option value="${d}" ${o.longDay === d ? 'selected' : ''}>${WEEKDAYS[d]}</option>`).join('')}</select>
-      </label>
-      <div class="field">
-        <span>Ton niveau actuel : un chrono récent</span>
-        <div class="segmented segmented-compact" role="radiogroup" aria-label="Distance du chrono">
-          ${DISTANCES.slice(0, 5).map(([d, l]) => `<label><input type="radio" name="refDist" value="${d}" ${o.ref.dist === d ? 'checked' : ''}><span>${l}</span></label>`).join('')}
-        </div>
-      </div>
-      <div class="field">${hmsInputs('rt', o.ref.time, 'Chrono de référence')}</div>
-      <div class="gen-preview" data-gen-preview aria-live="polite"></div>
-      <div class="form-actions"><button class="btn btn-primary" type="submit">Créer ce programme</button></div>
-    </form>`;
-}
-
-function genPreview(form) {
-  const o = readGenForm(form);
-  const box = form.querySelector('[data-gen-preview]');
-  const errs = validate(o);
-  if (errs.length) {
-    box.innerHTML = `<ul class="gen-errors">${errs.map((e) => `<li>${esc(e)}</li>`).join('')}</ul>`;
-    return null;
-  }
-  const plan = buildPlan(o);
-  const f = feasibility(o);
-  const msg = {
-    easy: 'Ton niveau actuel dépasse déjà cet objectif : vise un peu plus vite.',
-    ok: 'Objectif réaliste avec de la régularité.',
-    stretch: 'Objectif ambitieux : il demande de tenir le programme presque sans trou.',
-    hard: 'Objectif très ambitieux pour ce délai : recule la date ou vise un peu moins vite.',
-  }[f.level];
-  const tests = plan.weeks.flatMap((w) => w.sessions.filter((s) => s.type === 'test').map((s) => ({ ...s, week: w.n })));
-  const first = plan.weeks[0];
-  return (box.innerHTML = `
-    <h2 class="section-title">Aperçu</h2>
-    <p class="gen-verdict is-${f.level}">${msg}</p>
-    <dl class="stats">
-      <div><dt>Semaines</dt><dd>${plan.weeks.length}</dd></div>
-      <div><dt>Allure objectif</dt><dd>${clock(o.goalTime / (o.goalDist / 1000))}</dd></div>
-      <div><dt>Ton niveau sur ${distance(o.goalDist)}</dt><dd>${clock(f.now)}</dd></div>
-    </dl>
-    <p class="hint">${plan.phases.map((p) => `${p.name} : semaines ${p.from} à ${p.to}`).join(' · ')}.
-      ${tests.length ? `Tests : ${tests.map((t) => `semaine ${t.week} (repère ${clock(t.repere)})`).join(', ')}.` : ''}</p>
-    <h3 class="sub-title">Semaine 1</h3>
-    <ul class="gen-week">${first.sessions.map((s) => `<li><span>${WEEKDAYS[(new Date(`${o.start}T12:00`).getDay() + s.day) % 7]}</span>${esc(s.title)}</li>`).join('')}</ul>`, plan);
-}
+/* ---------- Écran : Nouveau programme (questionnaire) ---------- */
 
 /* ---------- Écran : Réglages ---------- */
 
@@ -570,7 +467,7 @@ function viewSettings() {
       <p>Efface ton programme, tes séances cochées et tes sorties importées. L’appli revient à zéro.</p>
       <button class="btn btn-ghost" data-reset>Effacer mes données</button>
     </section>
-    <p class="hint">Foulée, version 1.4</p>
+    <p class="hint">Foulée, version 2.0</p>
   `;
 }
 
@@ -580,7 +477,7 @@ const routes = [
   [/^#\/?$/, viewToday, 'today'],
   [/^#\/programme$/, viewPlan, 'plan'],
   [/^#\/seance\/([\w-]+)$/, viewSession, 'plan'],
-  [/^#\/nouveau-programme$/, viewGenerator, 'plan'],
+  [/^#\/nouveau-programme$/, viewQuiz, 'plan'],
   [/^#\/(?:analyse|tests)$/, viewAnalyseScreen, 'analyse'],
   [/^#\/course$/, viewRunHub, 'run'],
   [/^#\/outils$/, viewToolsScreen, 'run'],
@@ -597,7 +494,7 @@ function render() {
     const m = hash.match(re);
     if (m) {
       // Les formulaires vivants ne se redessinent pas à chaque sauvegarde (on garderait le clavier ouvert).
-      if (hash === lastHash && $view.querySelector('[data-tool], [data-gen], [data-live], [data-parcours]')) return;
+      if (hash === lastHash && $view.querySelector('[data-tool], [data-quiz], [data-live], [data-parcours]')) return;
       if ($view.querySelector('[data-live]')) unmountLive();
       if ($view.querySelector('[data-parcours]')) unmountParcours();
       $view.innerHTML = view(...m.slice(1));
@@ -605,8 +502,6 @@ function render() {
       if ($view.querySelector('[data-parcours]')) mountParcours($view.querySelector('[data-parcours]'));
       if (hash.startsWith('#/sortie/')) mountActivity($view, decodeURIComponent(m[1]));
       if ($view.querySelector('[data-tool]')) bindTools($view, (patch) => store.saveTools(patch));
-      const gen = $view.querySelector('[data-gen]');
-      if (gen) genPreview(gen);
       $nav.querySelectorAll('a').forEach((a) => a.toggleAttribute('aria-current', a.dataset.tab === tab));
       if (hash !== lastHash) {
         window.scrollTo(0, 0);
@@ -642,6 +537,7 @@ function toast(msg) {
 
 document.addEventListener('click', (ev) => {
   if (handleParcoursClick(ev, $view.querySelector('[data-parcours]'))) return;
+  if (handleQuizClick(ev, $view.querySelector('[data-quiz]'))) return;
   const t = ev.target.closest('[data-toggle],[data-quickdone],[data-clear],[data-export],[data-reset],[data-back],[data-strava-connect],[data-strava-sync],[data-strava-disconnect],[data-clear-activities],[data-restore-plan],[data-export-plan],[data-live-act],[data-delete-activity]');
   if (!t) return;
   if (t.dataset.liveAct) {
@@ -735,44 +631,35 @@ document.addEventListener('change', async (ev) => {
 
 document.addEventListener('input', (ev) => {
   if (handleParcoursInput(ev, $view.querySelector('[data-parcours]'))) return;
-  const gen = ev.target.closest('[data-gen]');
-  if (!gen) return;
-  // Le nombre de jours cochés suit le nombre de séances
-  if (ev.target.name === 'perWeek') {
-    const n = Number(ev.target.value);
-    const boxes = [...gen.querySelectorAll('[name=days]')];
-    const defaults = n === 4 ? [0, 2, 4, 6] : [0, 2, 4];
-    if (boxes.filter((b) => b.checked).length !== n) boxes.forEach((b) => { b.checked = defaults.includes(Number(b.value)); });
-  }
-  genPreview(gen);
+  handleQuizInput(ev, $view.querySelector('[data-quiz]'));
 });
 
 document.addEventListener('submit', (ev) => {
-  const gen = ev.target.closest('[data-gen]');
-  if (gen) {
-    ev.preventDefault();
-    const plan = genPreview(gen);
-    if (!plan) { toast('Complète les réglages du programme'); return; }
-    const hasLog = Object.keys(store.log).length > 0;
-    if (hasLog && !confirm('Ton programme actuel et son suivi seront archivés (ils restent dans tes sauvegardes). Créer le nouveau programme ?')) return;
-    store.replacePlan(plan);
-    location.hash = '#/';
-    toast('Nouveau programme créé');
-    return;
-  }
   const form = ev.target.closest('[data-log]');
   if (!form) return;
   ev.preventDefault();
   const fd = new FormData(form);
   const dist = parseFloat(String(fd.get('distance') || '').replace(',', '.'));
+  const time3k = readTime(fd, 'time3k');
   store.save(form.dataset.log, {
     date: fd.get('date') || null,
     duration: readTime(fd, 'duration'),
     distance: Number.isFinite(dist) ? dist : null,
-    time3k: readTime(fd, 'time3k'),
+    time3k,
     rpe: fd.get('rpe') ? Number(fd.get('rpe')) : null,
     note: String(fd.get('note') || '').trim(),
   });
+  // Programme adaptatif : un chrono de test recale les allures de la suite
+  const s = findSession(form.dataset.log);
+  if (time3k && s && (s.type === 'test' || s.type === 'objectif') && store.plan?.coach) {
+    const v = vdotFromRace(s.testDist || store.plan.goal.distance || 3000, time3k);
+    const before = store.plan.coach.vdot;
+    if (v > 15 && v < 90 && Math.abs(v - before) >= 0.3) {
+      store.adjustPlan((plan) => repace(plan, v, s.date));
+      toast(v > before ? 'Bravo ! Tes allures accélèrent pour la suite' : 'Allures ajustées : la suite sera un peu plus douce');
+      return;
+    }
+  }
   toast('Séance enregistrée');
 });
 
