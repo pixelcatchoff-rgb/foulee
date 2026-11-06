@@ -1,5 +1,5 @@
 // Fonctionne hors connexion : les fichiers de l'appli sont gardés en cache.
-const VERSION = 'foulee-1.1.0';
+const VERSION = 'foulee-1.2.0';
 const SHELL = [
   './',
   './index.html',
@@ -15,6 +15,8 @@ const SHELL = [
   './js/strava.js',
   './js/config.js',
   './js/generator.js',
+  './js/live.js',
+  './js/map.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/apple-touch-icon.png',

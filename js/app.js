@@ -2,6 +2,10 @@ import { store, allSessions, findSession, phaseOf } from './store.js';
 import { describe, watchGuide, totalTime } from './steps.js';
 import { viewTools, bindTools, DISTANCES } from './tools.js';
 import { viewAnalyse } from './analyse.js';
+import {
+  viewLive, mountLive, unmountLive, viewActivity, mountActivity, liveRun, start as liveStart, pause as livePause,
+  resume as liveResume, finish as liveFinish, discard as liveDiscard, saveRun, setVoice,
+} from './live.js';
 import { readStravaCSV } from './strava-csv.js';
 import {
   buildPlan, feasibility, validate, nextSunday, goalLabel, GOALS, WEEKDAYS,
@@ -115,7 +119,10 @@ function welcome(title = 'Bienvenue sur Foulée') {
 
 function viewToday() {
   const ctx = context();
-  if (ctx.empty) return welcome();
+  const live = liveRun();
+  const banner = live && (live.status === 'running' || live.status === 'paused' || live.status === 'done')
+    ? `<a class="notice notice-live" href="#/courir">${live.status === 'done' ? 'Ta dernière course n’est pas enregistrée : touche pour l’enregistrer.' : 'Course en cours : touche pour y revenir.'}</a>` : '';
+  if (ctx.empty) return banner + welcome();
   const s = ctx.next;
   const daysLeft = daysBetween(ctx.t, ctx.goalDate);
 
@@ -135,7 +142,8 @@ function viewToday() {
       <p class="hero-meta">${TYPE[s.type].label} · environ ${Math.round(totalTime(s.steps) / 60)} min</p>
       <div class="hero-actions">
         <a class="btn btn-primary" href="#/seance/${s.id}">Voir la séance</a>
-        <button class="btn" data-quickdone="${s.id}">Marquer comme faite</button>
+        <a class="btn" href="#/courir/${s.id}">Courir avec Foulée</a>
+        <button class="btn btn-ghost" data-quickdone="${s.id}">Marquer comme faite</button>
       </div>
     </section>` : `
     <section class="hero t-goal">
@@ -154,6 +162,7 @@ function viewToday() {
   const upcoming = ctx.sessions.filter((x) => x.date >= ctx.t && x !== s).slice(0, 3);
 
   return `
+    ${banner}
     ${lead}
     ${hero}
     ${missed}
@@ -278,6 +287,7 @@ function viewSession(id) {
       <p class="hero-meta">${TYPE[s.type].label} · environ ${Math.round(totalTime(s.steps) / 60)} min${s.repere ? ` · repère ${clock(s.repere)}` : ''}</p>
     </header>
 
+    <div class="form-actions"><a class="btn btn-primary" href="#/courir/${s.id}">Courir avec Foulée</a></div>
     ${stepsHTML(describe(s.steps))}
     ${s.note ? `<p class="note">${esc(s.note)}</p>` : ''}
 
@@ -520,7 +530,7 @@ function viewSettings() {
       <p>Efface ton programme, tes séances cochées et tes sorties importées. L’appli revient à zéro.</p>
       <button class="btn btn-ghost" data-reset>Effacer mes données</button>
     </section>
-    <p class="hint">Foulée, version 1.1</p>
+    <p class="hint">Foulée, version 1.2</p>
   `;
 }
 
@@ -533,6 +543,8 @@ const routes = [
   [/^#\/nouveau-programme$/, viewGenerator, 'plan'],
   [/^#\/(?:analyse|tests)$/, viewAnalyseScreen, 'analyse'],
   [/^#\/outils$/, viewToolsScreen, 'tools'],
+  [/^#\/courir(?:\/([\w-]+))?$/, (sid) => viewLive(sid), 'live'],
+  [/^#\/sortie\/(.+)$/, (id) => viewActivity(decodeURIComponent(id)), 'analyse'],
   [/^#\/reglages$/, viewSettings, 'settings'],
 ];
 
@@ -543,8 +555,11 @@ function render() {
     const m = hash.match(re);
     if (m) {
       // Les formulaires vivants ne se redessinent pas à chaque sauvegarde (on garderait le clavier ouvert).
-      if (hash === lastHash && $view.querySelector('[data-tool], [data-gen]')) return;
+      if (hash === lastHash && $view.querySelector('[data-tool], [data-gen], [data-live]')) return;
+      if ($view.querySelector('[data-live]')) unmountLive();
       $view.innerHTML = view(...m.slice(1));
+      if (tab === 'live') mountLive($view.querySelector('[data-live]'));
+      if (hash.startsWith('#/sortie/')) mountActivity($view, decodeURIComponent(m[1]));
       if (tab === 'tools') bindTools($view, (patch) => store.saveTools(patch));
       const gen = $view.querySelector('[data-gen]');
       if (gen) genPreview(gen);
@@ -582,8 +597,26 @@ function toast(msg) {
 }
 
 document.addEventListener('click', (ev) => {
-  const t = ev.target.closest('[data-toggle],[data-quickdone],[data-clear],[data-export],[data-reset],[data-back],[data-strava-connect],[data-strava-sync],[data-strava-disconnect],[data-clear-activities],[data-restore-plan],[data-export-plan]');
+  const t = ev.target.closest('[data-toggle],[data-quickdone],[data-clear],[data-export],[data-reset],[data-back],[data-strava-connect],[data-strava-sync],[data-strava-disconnect],[data-clear-activities],[data-restore-plan],[data-export-plan],[data-live-act],[data-delete-activity]');
   if (!t) return;
+  if (t.dataset.liveAct) {
+    const act = t.dataset.liveAct;
+    if (act === 'start') liveStart();
+    else if (act === 'pause') livePause();
+    else if (act === 'resume') liveResume();
+    else if (act === 'finish') { if (confirm('Terminer la course ?')) liveFinish(); }
+    else if (act === 'save') { const id = saveRun(); toast('Sortie enregistrée'); location.hash = `#/sortie/${encodeURIComponent(id)}`; }
+    else if (act === 'discard') { if (confirm('Supprimer cette course sans l’enregistrer ?')) { liveDiscard(); location.hash = '#/'; } }
+    return;
+  }
+  if (t.dataset.deleteActivity) {
+    if (confirm('Supprimer cette sortie ? La séance reste cochée.')) {
+      store.deleteActivity(t.dataset.deleteActivity);
+      location.hash = '#/analyse';
+      toast('Sortie supprimée');
+    }
+    return;
+  }
   if ('stravaConnect' in t.dataset) {
     connectStrava();
   } else if ('stravaSync' in t.dataset) {
@@ -630,6 +663,7 @@ document.addEventListener('click', (ev) => {
 });
 
 document.addEventListener('change', async (ev) => {
+  if (ev.target.matches('[data-voice]')) { setVoice(ev.target.checked); return; }
   if (ev.target.matches('[data-import-csv]')) {
     const file = ev.target.files[0];
     if (!file) return;

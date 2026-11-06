@@ -313,6 +313,48 @@ a { color: inherit; }
 .welcome-steps li::before { content: counter(step); font: 700 24px/1.1 var(--font-cond); color: var(--ink); }
 .welcome-steps strong { color: var(--ink); }
 
+/* ---------- Course en direct ---------- */
+.live { margin: calc(-20px - env(safe-area-inset-top)) -18px 0; }
+.live-map, .activity-map { background: var(--surface); position: relative; z-index: 0; }
+.live-map { height: 38vh; min-height: 220px; }
+.activity-map { height: 300px; border-radius: var(--radius-l); overflow: hidden; margin: 4px 0 18px; }
+.live-nomap { padding: 24px 18px; color: var(--ink-soft); margin: 0; }
+.live-body { padding: 14px 18px 0; }
+.live-title { font: 600 18px/1.2 var(--font-cond); margin: 0; color: var(--ink-soft); }
+.live-gps { font-size: 13px; color: var(--test); margin: 2px 0 0; }
+.live-gps.is-ok { color: var(--easy); }
+.live-time { font: 700 clamp(64px, 22vw, 96px)/1 var(--font-cond); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; margin: 6px 0 8px; }
+.live-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 0 0 14px; }
+.live-stats div { border-top: 2px solid var(--ink); padding-top: 4px; }
+.live-stats dt { font-size: 13px; color: var(--ink-soft); }
+.live-stats dd { margin: 0; font: 700 30px/1.05 var(--font-cond); font-variant-numeric: tabular-nums; }
+.live-stats small { font-size: 15px; color: var(--ink-soft); font-weight: 600; }
+.live-step {
+  display: grid; gap: 2px; padding: 12px 14px; margin-bottom: 14px;
+  border-radius: var(--radius-l); border-left: 6px solid var(--easy); background: var(--surface);
+}
+.live-step.is-work { border-left-color: var(--quality); }
+.live-step.is-recovery { border-left-color: var(--long); }
+.live-step.pace-fast, .live-step.pace-slow { background: color-mix(in srgb, var(--test) 16%, var(--surface)); }
+.ls-name { font: 700 24px/1.1 var(--font-cond); }
+.ls-left { font: 700 34px/1.05 var(--font-cond); font-variant-numeric: tabular-nums; }
+.ls-left small { font-size: 16px; color: var(--ink-soft); font-weight: 600; }
+.ls-target { font-weight: 600; }
+.pace-fast .ls-target, .pace-slow .ls-target { color: var(--test); }
+.ls-next { font-size: 14px; color: var(--ink-soft); }
+.live-controls { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 10px; }
+.btn-big { min-height: 58px; font-size: 19px; }
+.live-voice { display: flex; align-items: center; gap: 8px; margin: 14px 0 4px; font-size: 15px; }
+.live-voice input { width: 20px; height: 20px; accent-color: var(--easy); }
+.live-splits { list-style: none; padding: 0; margin: 8px 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); column-gap: 20px; }
+.live-splits li { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.notice-live { border-color: var(--quality); font-weight: 600; }
+.runs a { display: grid; text-decoration: none; }
+.leaflet-container { font-family: var(--font); background: var(--surface); }
+@media (prefers-color-scheme: dark) {
+  .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9) saturate(.6); }
+}
+
 /* ---------- Analyse ---------- */
 .analyse-block { margin-top: 26px; }
 .analyse-block .section-title { margin-top: 0; }

@@ -77,6 +77,12 @@ export const store = {
     return { added, linked };
   },
 
+  deleteActivity(id) {
+    delete state.activities[id];
+    for (const e of Object.values(state.log)) if (e.activityId === id) delete e.activityId;
+    persist();
+  },
+
   clearActivities() {
     state.activities = {};
     for (const e of Object.values(state.log)) delete e.activityId;
@@ -214,7 +220,10 @@ export function phaseOf(plan, weekN) {
 
 // Toutes les sorties connues : Strava (archive ou API) + séances saisies à la main.
 export function allRuns() {
-  const runs = store.activities.map((a) => ({ ...a }));
+  let runs = store.activities.map((a) => ({ ...a }));
+  // Une sortie enregistrée avec Foulée et aussi avec la montre (Strava) n'est comptée qu'une fois
+  const others = runs.filter((r) => r.source !== 'gps');
+  runs = runs.filter((r) => r.source !== 'gps' || !others.some((o) => Math.abs(new Date(o.start) - new Date(r.start)) < 15 * 60000));
   const linked = new Set(runs.map((r) => r.id));
   for (const s of allSessions()) {
     const e = state.log[s.id];
