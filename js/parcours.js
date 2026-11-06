@@ -133,11 +133,15 @@ async function search(root, seed, restart = false) {
       if (!current()) return;
       st.loops.push(loop);
       if (st.map) st.lines.push(st.L.polyline(loop.coords, { color: cssColor(n - 1), weight: 5, opacity: 0.5, interactive: false }).addTo(st.map));
-      status.textContent = n < 3 ? `Boucle ${n} trouvée, recherche des suivantes…` : '';
+      status.textContent = n < 3 && !loop.repeats ? `Boucle ${n} trouvée, recherche des suivantes…` : '';
       paintList(root);
       if (n === 1) select(root, 0);
     }, seed, current);
-    if (current()) status.textContent = st.loops.length < 3 ? 'Pas d’autre boucle trouvée par ici.' : '';
+    if (current()) {
+      status.textContent = st.loops.some((l) => l.repeats)
+        ? 'Pas de boucle sans passage en double par ici : essaie un autre départ sur la carte, ou une autre longueur.'
+        : st.loops.length < 3 ? 'Pas d’autre boucle sans passage en double par ici.' : '';
+    }
   } catch (e) {
     if (current()) status.textContent = e.message;
   } finally {
@@ -161,7 +165,7 @@ function paintList(root) {
   root.querySelector('[data-route-list]').innerHTML = st.loops.map((l, i) => `
     <li>
       <button class="route-card${i === st.selected ? ' is-on' : ''}" data-route-pick="${i}" style="--c:${cssColor(i)}">
-        <span class="rc-name">Boucle vers ${l.direction}</span>
+        <span class="rc-name">Boucle vers ${l.direction}${l.repeats ? '<small>Repasse par endroits : peu de chemins par ici</small>' : ''}</span>
         <span class="rc-dist">${km(l.distance)} km</span>
       </button>
     </li>`).join('');

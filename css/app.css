@@ -389,6 +389,7 @@ a { color: inherit; }
 }
 .route-card.is-on { border-color: var(--ink); border-left-color: var(--c); }
 .rc-name { font-weight: 600; }
+.rc-name small { display: block; font-weight: 400; font-size: 13px; color: var(--test); }
 .rc-dist { font: 700 24px/1 var(--font-cond); font-variant-numeric: tabular-nums; }
 
 .route-wrap { position: relative; margin: 6px 0 4px; }
