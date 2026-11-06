@@ -58,6 +58,15 @@ export default {
         return forward(await fetch(`${STRAVA}/api/v3/athlete/activities?${q}`, { headers: { Authorization: auth } }), cors);
       }
 
+      // Itinéraires piétons (si le navigateur ne peut pas joindre le serveur directement)
+      if (url.pathname === '/route' && req.method === 'GET') {
+        const points = url.searchParams.get('points') || '';
+        if (!/^[-0-9.,;]+$/.test(points) || points.split(';').length > 12) return json({ error: 'Points invalides' }, 400, cors);
+        return forward(await fetch(`https://routing.openstreetmap.de/routed-foot/route/v1/foot/${points}?overview=full&geometries=geojson&steps=false`, {
+          headers: { 'User-Agent': 'Foulee/1.3 (appli de course a pied personnelle)' },
+        }), cors);
+      }
+
       if (url.pathname === '/deauthorize' && req.method === 'POST') {
         const { access_token } = await req.json();
         return forward(await fetch(`${STRAVA}/oauth/deauthorize`, {

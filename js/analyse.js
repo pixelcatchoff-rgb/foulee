@@ -145,7 +145,7 @@ export function viewAnalyse(ctx, strava) {
   const importBlock = `
     <section class="analyse-block import">
       <h2 class="section-title">Ajouter des sorties</h2>
-      <div class="form-actions"><a class="btn btn-primary" href="#/courir">Courir avec Foulée</a></div>
+      <div class="form-actions"><a class="btn btn-primary" href="#/courir">Courir avec Foulée</a><a class="btn" href="#/parcours">Trouver un parcours</a></div>
       ${strava}
       <div class="form-actions">
         <label class="btn">Importer activities.csv<input type="file" accept=".csv,text/csv" data-import-csv hidden></label>

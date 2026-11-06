@@ -1,6 +1,7 @@
 // Course en direct : suivi GPS, allures, annonces vocales et guidage de la séance.
 import { store, findSession } from './store.js';
 import { createMap, trackLayer, meMarker, haversine } from './map.js';
+import { distanceToRoute } from './routes.js';
 import { clock, distance, duration, esc, paceRange, toISO, dateLong } from './util.js';
 
 const LIVE_KEY = 'foulee.live';
@@ -25,7 +26,7 @@ function blank(sessionId = null) {
     status: 'ready', sessionId, startedAt: null, points: [], dist: 0,
     movingMs: 0, resumedAt: null, splits: [], voice: true,
     step: 0, stepStartMs: 0, stepStartDist: 0, guideDone: false,
-    lastAlert: 0, offSince: null,
+    lastAlert: 0, offSince: null, route: null, offRouteSince: null, lastRouteAlert: 0,
   };
 }
 
@@ -172,7 +173,10 @@ function onPosition(pos) {
   const { latitude: lat, longitude: lon, accuracy: acc } = pos.coords;
   const t = pos.timestamp || now();
   lastFix = [lat, lon, t, acc];
-  if (run && run.status === 'running' && acc <= MAX_ACC) addPoint(lat, lon, t);
+  if (run && run.status === 'running' && acc <= MAX_ACC) {
+    addPoint(lat, lon, t);
+    checkRoute(lat, lon);
+  }
   paint();
 }
 
@@ -313,8 +317,27 @@ export function saveRun() {
 export const liveRun = () => run;
 export function prepare(sessionId) {
   if (run && run.status !== 'ready') return run; // une course est déjà en cours
+  const keepRoute = run?.route && run.sessionId === (sessionId || null) ? run.route : null;
   run = blank(sessionId || null);
+  run.route = keepRoute;
+  try {
+    const next = JSON.parse(localStorage.getItem('foulee.nextRoute') || 'null');
+    if (next?.coords?.length) run.route = next;
+    localStorage.removeItem('foulee.nextRoute');
+  } catch { /* pas de parcours choisi */ }
   return run;
+}
+
+// Écart au parcours choisi : alerte vocale si on s'en éloigne plus de 20 s
+function checkRoute(lat, lon) {
+  if (!run.route) return;
+  const d = distanceToRoute([lat, lon], run.route.coords);
+  if (d < 50) { run.offRouteSince = null; return; }
+  run.offRouteSince ||= now();
+  if (now() - run.offRouteSince > 20000 && now() - run.lastRouteAlert > 60000) {
+    run.lastRouteAlert = now();
+    say('Tu t’éloignes du parcours.');
+  }
 }
 
 function tick() {
@@ -336,7 +359,8 @@ export function viewLive(sessionId) {
     <div class="live" data-live>
       <div class="live-map" data-live-map></div>
       <div class="live-body">
-        <p class="live-title">${s ? esc(s.title) : 'Sortie libre'}</p>
+        <p class="live-title">${s ? esc(s.title) : 'Sortie libre'}${r.route ? ` · boucle de ${(r.route.distance / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} km` : ''}</p>
+        ${r.status === 'ready' && !r.route ? `<a class="live-route-link" href="#/parcours${r.sessionId ? `/${r.sessionId}` : ''}">Choisir un parcours autour de moi</a>` : ''}
         <p class="live-gps" data-gps>Recherche du GPS…</p>
         <div class="live-time" data-time>0:00</div>
         <dl class="live-stats">
@@ -367,6 +391,10 @@ export async function mountLive(root) {
     const { L, map } = await createMap(q('[data-live-map]'));
     if (!ui || ui.root !== root) return;
     ui.L = L; ui.map = map;
+    if (run.route) {
+      const planned = L.polyline(run.route.coords, { color: getComputedStyle(document.documentElement).getPropertyValue('--long').trim(), weight: 5, opacity: 0.6, dashArray: '8 8' }).addTo(map);
+      if (!run.points.length && !lastFix) map.fitBounds(planned.getBounds(), { padding: [20, 20] });
+    }
     ui.line = trackLayer(L, map, run.points.map((p) => [p[0], p[1]]));
     ui.me = meMarker(L, map);
     map.on('dragstart', () => { ui.follow = false; });

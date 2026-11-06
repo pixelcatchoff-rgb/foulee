@@ -355,6 +355,24 @@ a { color: inherit; }
   .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9) saturate(.6); }
 }
 
+/* ---------- Parcours ---------- */
+.hero-link { display: inline-block; margin-top: 14px; font-weight: 600; }
+.live-route-link { display: inline-block; margin: 4px 0 0; font-weight: 600; font-size: 15px; }
+.stepper { display: grid; grid-template-columns: 54px 1fr 54px; gap: 10px; align-items: center; }
+.stepper .btn { padding: 0; font-size: 24px; }
+.stepper output { text-align: center; font: 700 34px/1 var(--font-cond); color: var(--ink); font-variant-numeric: tabular-nums; }
+.route-map { height: 46vh; min-height: 260px; border-radius: var(--radius-l); overflow: hidden; background: var(--surface); margin: 6px 0 10px; position: relative; z-index: 0; }
+.route-status { color: var(--ink-soft); font-size: 15px; min-height: 1.5em; margin: 0 0 6px; }
+.route-list { list-style: none; padding: 0; margin: 0 0 8px; display: grid; gap: 8px; }
+.route-card {
+  appearance: none; width: 100%; display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+  padding: 14px 16px; border-radius: var(--radius-l); border: 1.5px solid var(--line); border-left: 6px solid var(--c);
+  background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer;
+}
+.route-card.is-on { border-color: var(--ink); border-left-color: var(--c); }
+.rc-name { font-weight: 600; }
+.rc-dist { font: 700 24px/1 var(--font-cond); font-variant-numeric: tabular-nums; }
+
 /* ---------- Analyse ---------- */
 .analyse-block { margin-top: 26px; }
 .analyse-block .section-title { margin-top: 0; }

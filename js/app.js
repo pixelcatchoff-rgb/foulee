@@ -2,6 +2,8 @@ import { store, allSessions, findSession, phaseOf } from './store.js';
 import { describe, watchGuide, totalTime } from './steps.js';
 import { viewTools, bindTools, DISTANCES } from './tools.js';
 import { viewAnalyse } from './analyse.js';
+import { viewParcours, mountParcours, unmountParcours, handleParcoursClick } from './parcours.js';
+import { sessionDistance } from './routes.js';
 import {
   viewLive, mountLive, unmountLive, viewActivity, mountActivity, liveRun, start as liveStart, pause as livePause,
   resume as liveResume, finish as liveFinish, discard as liveDiscard, saveRun, setVoice,
@@ -145,6 +147,7 @@ function viewToday() {
         <a class="btn" href="#/courir/${s.id}">Courir avec Foulée</a>
         <button class="btn btn-ghost" data-quickdone="${s.id}">Marquer comme faite</button>
       </div>
+      <a class="hero-link" href="#/parcours/${s.id}">Trouver une boucle de ${(sessionDistance(s, ctx.plan) / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} km autour de moi</a>
     </section>` : `
     <section class="hero t-goal">
       <h1 class="hero-title">Toutes les séances sont faites</h1>
@@ -287,7 +290,10 @@ function viewSession(id) {
       <p class="hero-meta">${TYPE[s.type].label} · environ ${Math.round(totalTime(s.steps) / 60)} min${s.repere ? ` · repère ${clock(s.repere)}` : ''}</p>
     </header>
 
-    <div class="form-actions"><a class="btn btn-primary" href="#/courir/${s.id}">Courir avec Foulée</a></div>
+    <div class="form-actions">
+      <a class="btn btn-primary" href="#/courir/${s.id}">Courir avec Foulée</a>
+      <a class="btn" href="#/parcours/${s.id}">Trouver un parcours</a>
+    </div>
     ${stepsHTML(describe(s.steps))}
     ${s.note ? `<p class="note">${esc(s.note)}</p>` : ''}
 
@@ -530,7 +536,7 @@ function viewSettings() {
       <p>Efface ton programme, tes séances cochées et tes sorties importées. L’appli revient à zéro.</p>
       <button class="btn btn-ghost" data-reset>Effacer mes données</button>
     </section>
-    <p class="hint">Foulée, version 1.2</p>
+    <p class="hint">Foulée, version 1.3</p>
   `;
 }
 
@@ -544,6 +550,7 @@ const routes = [
   [/^#\/(?:analyse|tests)$/, viewAnalyseScreen, 'analyse'],
   [/^#\/outils$/, viewToolsScreen, 'tools'],
   [/^#\/courir(?:\/([\w-]+))?$/, (sid) => viewLive(sid), 'live'],
+  [/^#\/parcours(?:\/([\w-]+))?$/, (sid) => viewParcours(sid), 'live'],
   [/^#\/sortie\/(.+)$/, (id) => viewActivity(decodeURIComponent(id)), 'analyse'],
   [/^#\/reglages$/, viewSettings, 'settings'],
 ];
@@ -555,10 +562,12 @@ function render() {
     const m = hash.match(re);
     if (m) {
       // Les formulaires vivants ne se redessinent pas à chaque sauvegarde (on garderait le clavier ouvert).
-      if (hash === lastHash && $view.querySelector('[data-tool], [data-gen], [data-live]')) return;
+      if (hash === lastHash && $view.querySelector('[data-tool], [data-gen], [data-live], [data-parcours]')) return;
       if ($view.querySelector('[data-live]')) unmountLive();
+      if ($view.querySelector('[data-parcours]')) unmountParcours();
       $view.innerHTML = view(...m.slice(1));
-      if (tab === 'live') mountLive($view.querySelector('[data-live]'));
+      if ($view.querySelector('[data-live]')) mountLive($view.querySelector('[data-live]'));
+      if ($view.querySelector('[data-parcours]')) mountParcours($view.querySelector('[data-parcours]'));
       if (hash.startsWith('#/sortie/')) mountActivity($view, decodeURIComponent(m[1]));
       if (tab === 'tools') bindTools($view, (patch) => store.saveTools(patch));
       const gen = $view.querySelector('[data-gen]');
@@ -597,6 +606,7 @@ function toast(msg) {
 }
 
 document.addEventListener('click', (ev) => {
+  if (handleParcoursClick(ev, $view.querySelector('[data-parcours]'))) return;
   const t = ev.target.closest('[data-toggle],[data-quickdone],[data-clear],[data-export],[data-reset],[data-back],[data-strava-connect],[data-strava-sync],[data-strava-disconnect],[data-clear-activities],[data-restore-plan],[data-export-plan],[data-live-act],[data-delete-activity]');
   if (!t) return;
   if (t.dataset.liveAct) {
