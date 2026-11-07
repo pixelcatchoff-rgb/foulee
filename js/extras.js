@@ -80,10 +80,13 @@ export function openCalendar(text, name, count = 1) {
     <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-t">
       <h2 id="sheet-t" class="section-title">Ajouter au calendrier</h2>
       <p>${count > 1 ? `${count} séances` : '1 séance'}, avec une alerte la veille à 18 h.</p>
-      <button class="btn btn-primary btn-big" data-sheet="open">Ouvrir dans Calendrier</button>
-      <p class="hint">iOS affiche les séances : touche « Tout ajouter », puis reviens dans Foulée.</p>
-      <button class="btn btn-big" data-sheet="save">Enregistrer le fichier</button>
-      <p class="hint">Si rien ne s’ouvre : choisis « Enregistrer dans Fichiers », ouvre l’app Fichiers, touche le fichier « ${name} », puis « Tout ajouter ».</p>
+      <button class="btn btn-primary btn-big" data-sheet="save">Enregistrer le fichier</button>
+      <ol class="sheet-steps">
+        <li>Choisis « Enregistrer dans Fichiers ».</li>
+        <li>Dans l’app Fichiers, touche une fois « ${name} » : la liste des séances s’affiche.</li>
+        <li>Touche le bouton Partager en bas à droite, puis Calendrier (ou « Tout ajouter » s’il apparaît).</li>
+      </ol>
+      <button class="btn btn-big" data-sheet="open">Essayer d’ouvrir directement</button>
       <button class="btn btn-ghost" data-sheet="close">Fermer</button>
     </div>`;
   document.body.appendChild(wrap);
