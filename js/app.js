@@ -3,7 +3,7 @@ import { describe, watchGuide, totalTime } from './steps.js';
 import { viewTools, bindTools, DISTANCES } from './tools.js';
 import { viewAnalyse } from './analyse.js';
 import {
-  viewConseils, viewArticle, viewJourJ, sessionTipsHTML, todayTip, saveWeight,
+  viewConseils, viewArticle, viewJourJ, sessionTipsHTML, todayTip, savePref,
 } from './conseils.js';
 import {
   routinesList, viewRoutine, mountRoutine, unmountRoutine, handleRoutineClick, handleRoutineInput,
@@ -479,7 +479,7 @@ function viewSettings() {
       <p>Efface ton programme, tes séances cochées et tes sorties importées. L’appli revient à zéro.</p>
       <button class="btn btn-ghost" data-reset>Effacer mes données</button>
     </section>
-    <p class="hint">Foulée, version 2.1</p>
+    <p class="hint">Foulée, version 2.2</p>
   `;
 }
 
@@ -504,13 +504,20 @@ const routes = [
 ];
 
 let lastHash = null;
+let rendering = false;
+// Pas de rendu imbriqué : vider l'écran peut déclencher un « change » sur le champ qui perd le focus
 function render() {
+  if (rendering) return;
+  rendering = true;
+  try { renderNow(); } finally { rendering = false; }
+}
+function renderNow() {
   const hash = location.hash || '#/';
   for (const [re, view, tab] of routes) {
     const m = hash.match(re);
     if (m) {
       // Les formulaires vivants ne se redessinent pas à chaque sauvegarde (on garderait le clavier ouvert).
-      if (hash === lastHash && $view.querySelector('[data-tool], [data-quiz], [data-live], [data-parcours], [data-routine], [data-weight]')) return;
+      if (hash === lastHash && $view.querySelector('[data-tool], [data-quiz], [data-live], [data-parcours], [data-routine], [data-profile]')) return;
       if ($view.querySelector('[data-routine]')) unmountRoutine();
       if ($view.querySelector('[data-live]')) unmountLive();
       if ($view.querySelector('[data-parcours]')) unmountParcours();
@@ -623,6 +630,15 @@ document.addEventListener('click', (ev) => {
 });
 
 document.addEventListener('change', async (ev) => {
+  // Profil alimentaire : enregistré, puis les conseils de la page se mettent à jour
+  if (ev.target.matches('[data-pref]') && ev.target.closest('[data-profile]')) {
+    savePref(ev.target);
+    const y = window.scrollY;
+    lastHash = null;
+    render();
+    window.scrollTo(0, y);
+    return;
+  }
   if (handleParcoursInput(ev, $view.querySelector('[data-parcours]'))) { ev.target.blur(); return; }
   if (ev.target.matches('[data-voice]')) { setVoice(ev.target.checked); return; }
   if (ev.target.matches('[data-import-csv]')) {
@@ -651,7 +667,7 @@ document.addEventListener('change', async (ev) => {
 document.addEventListener('input', (ev) => {
   if (handleParcoursInput(ev, $view.querySelector('[data-parcours]'))) return;
   if (handleRoutineInput(ev)) return;
-  if (ev.target.matches('[data-weight]')) { saveWeight(ev.target.value); return; }
+  if (ev.target.matches('[data-pref=weight]')) { savePref(ev.target); return; }
   handleQuizInput(ev, $view.querySelector('[data-quiz]'));
 });
 

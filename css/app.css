@@ -418,6 +418,14 @@ a { color: inherit; }
 .weight-field { max-width: 180px; }
 .t-quality.hub-card, .hub-card.t-quality { --accent: var(--quality); }
 
+.pf-checks { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0 0 14px; }
+.pf-check { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+.pf-check input { width: 20px; height: 20px; accent-color: var(--easy); }
+.menu { margin: 8px 0 10px; display: grid; gap: 8px; }
+.menu div { border-left: 3px solid var(--quality); padding-left: 10px; }
+.menu dt { font-weight: 700; }
+.menu dd { margin: 0; color: var(--ink-soft); }
+
 /* Routines */
 .rt-card {
   display: grid; gap: 6px; padding: 18px; margin: 14px 0; border-radius: var(--radius-l);

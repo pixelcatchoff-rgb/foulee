@@ -4,6 +4,8 @@ import {
   assess, buildPlan, suggestTarget, feasibility, zones, ZONE_INFO, nextSunday, weeksBetween, goalLabel,
 } from './coach.js';
 import { addDays, clock, esc, todayISO, distance as fmtDist } from './util.js';
+import { profileFields } from './conseils.js';
+import { foodProfile, recovery, portionNote } from './foods.js';
 
 const KEY = 'foulee.quiz';
 const WEEKDAYS = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
@@ -67,6 +69,7 @@ const STEPS = [
     id: 'age', title: 'Ta tranche d’âge',
     options: [[0, 'Moins de 30 ans'], [1, '30 à 39 ans'], [2, '40 à 49 ans'], [3, '50 à 59 ans'], [4, '60 ans et plus']],
   },
+  { id: 'body', title: 'Ton profil', help: 'Pour des conseils en portions concrètes (combien de bananes, de tranches de pain…) adaptés à ton alimentation. Tout est facultatif et reste sur ton téléphone.', custom: true },
   { id: 'avail', title: 'Ton temps pour courir', custom: true },
   { id: 'dates', title: 'Quand ?', custom: true },
   { id: 'summary', title: 'Ton programme', custom: true },
@@ -118,6 +121,12 @@ const readHms = (root, prefix) => {
 };
 
 const CUSTOM = {
+  body() {
+    return `
+      <div data-profile>${profileFields(foodProfile())}</div>
+      <div class="quiz-actions"><button class="btn btn-primary btn-big" data-q-next="body">Continuer</button></div>`;
+  },
+
   race() {
     const r = a.race || { dist: 5000, time: null };
     return `
@@ -237,6 +246,12 @@ const CUSTOM = {
         <ul class="gen-week">${plan.weeks[0].sessions.map((s) => `<li><span>${WEEKDAYS[(new Date(`${o.start}T12:00`).getDay() + s.day) % 7]}</span>${esc(s.title)}</li>`).join('')}</ul>
       </section>
 
+      <section>
+        <h2 class="section-title">Après tes séances dures</h2>
+        <p>${esc(recovery().snack.charAt(0).toUpperCase() + recovery().snack.slice(1))}, dans l’heure.</p>
+        <p class="hint">${portionNote()} Tous les conseils nutrition de l’appli suivent ce profil.</p>
+      </section>
+
       <div class="quiz-actions">
         <button class="btn btn-primary btn-big" data-q-create>Créer mon programme</button>
       </div>
@@ -340,6 +355,7 @@ export function handleQuizClick(ev, root) {
     next(root);
     return true;
   }
+  if (t.dataset.qNext === 'body') { next(root); return true; }
   if (t.dataset.qNext === 'avail') {
     const debut = isBeginner();
     const per = debut ? 3 : Number(root.querySelector('[name=q-per]:checked')?.value || a.perWeek);

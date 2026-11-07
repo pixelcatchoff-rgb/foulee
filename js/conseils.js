@@ -4,23 +4,11 @@
 import { store, allSessions } from './store.js';
 import { totalTime } from './steps.js';
 import { clock, daysBetween, esc, distance as fmtDist } from './util.js';
+import {
+  foodProfile, recovery, preSnack, preMeal, raceBreakfast, loadingDay, proteinServing, coffee, hydration, portionNote,
+} from './foods.js';
 
-const kg = () => {
-  const w = Number(store.tools.weight);
-  return w >= 35 && w <= 160 ? w : null;
-};
-// « 1 g/kg » devient « environ 70 g » si le poids est connu
-const perKg = (g, unit = 'g', round = 5) => {
-  const w = kg();
-  if (!w) return `${String(g).replace('.', ',')} ${unit} par kg de poids`;
-  return `environ ${Math.round((g * w) / round) * round} ${unit}`;
-};
-const range = (a, b, unit = 'g') => {
-  const w = kg();
-  if (!w) return `${String(a).replace('.', ',')} à ${String(b).replace('.', ',')} ${unit} par kg`;
-  const r = (x) => Math.round((x * w) / 10) * 10;
-  return `${r(a)} à ${r(b)} ${unit}`;
-};
+const cap = (x) => x.charAt(0).toUpperCase() + x.slice(1);
 
 export const SOURCES = {
   acsm: ['ACSM, AND, DC – Nutrition and Athletic Performance (2016)', 'https://www.myhealthcareer.com.au/dietetics/joint-position-statement-sport-nutritions'],
@@ -39,16 +27,15 @@ export function articles() {
     {
       id: 'alimentation', title: 'Bien manger au quotidien', lead: 'Assez d’énergie, des glucides selon l’entraînement, des protéines à chaque repas.',
       body: [
-        ['Les glucides, le carburant', [
-          `Jour léger ou de repos : ${range(3, 5)} de glucides sur la journée.`,
-          `Environ une heure d’entraînement par jour : ${range(5, 7)}.`,
-          'Les jours de séance dure ou de sortie longue, augmente la part de féculents, pain, fruits ; les jours calmes, réduis-la.',
-          'Sources : pâtes, riz, pommes de terre, pain, flocons d’avoine, fruits, légumes secs.',
+        ['Les féculents, selon la journée', [
+          'Jour de repos ou footing court : un quart de l’assiette en féculents (pâtes, riz, pommes de terre, pain).',
+          'Jour de séance classique : un tiers de l’assiette.',
+          'Veille et jour de séance dure ou de sortie longue : la moitié de l’assiette.',
+          'Le reste de l’assiette : des légumes et une portion de protéines.',
         ]],
-        ['Les protéines, pour réparer', [
-          `Sur la journée : ${range(1.2, 2)} de protéines.`,
-          `Réparties sur 3 à 4 prises de ${perKg(0.3)} chacune plutôt qu’en un seul gros repas.`,
-          'Œufs, produits laitiers, viande, poisson, légumineuses, tofu.',
+        ['Une portion de protéines à chaque repas', [
+          `${cap(proteinServing())}.`,
+          'Au petit-déjeuner aussi : un yaourt, un œuf ou un verre de lait comptent déjà.',
         ]],
         ['Ne pas manger trop peu', [
           'Courir en restriction fatigue, blesse et fait stagner : manger assez fait partie de l’entraînement.',
@@ -61,12 +48,12 @@ export function articles() {
     {
       id: 'avant', title: 'Manger avant de courir', lead: 'Le bon délai évite les crampes d’estomac et le coup de mou.',
       body: [
-        ['Le repas', [
-          'Repas principal 2 à 4 heures avant une séance dure : riche en glucides, pauvre en graisses et en fibres.',
-          'Exemples : riz ou pâtes avec un peu de poulet ; pain, miel et yaourt.',
+        ['Avant une séance dure', [
+          `${cap(preMeal().label)} : ${preMeal().main}${preMeal().alt ? `. Si tu cours le matin : ${preMeal().alt}` : ''}.`,
+          'Peu de gras et de fibres juste avant (pas de friture, de crudités ou de légumes secs en grande quantité).',
         ]],
         ['La collation', [
-          '30 à 60 minutes avant, si tu as faim : une banane, une compote, deux biscuits secs.',
+          `30 à 60 minutes avant, si tu as faim : ${preSnack()}.`,
           'Footing facile de moins d’une heure : tu peux courir à jeun si tu le supportes bien.',
           'Séance de qualité, test ou sortie longue : ne pars pas à jeun.',
         ]],
@@ -79,11 +66,11 @@ export function articles() {
         ['Avant et pendant', [
           'Arrive bien hydraté : urines claires, un grand verre d’eau dans l’heure qui précède.',
           'Moins d’une heure de course : rien à boire pendant, sauf grosse chaleur.',
-          'Plus d’une heure : bois selon la soif, par petites gorgées, environ 400 à 800 ml par heure selon la chaleur.',
-          'L’objectif : ne pas perdre plus de 2 % de ton poids, mais ne jamais finir plus lourd qu’au départ (risque d’hyponatrémie).',
+          'Plus d’une heure : bois selon la soif, quelques gorgées toutes les 15 à 20 minutes (un demi-litre à trois quarts de litre par heure, selon la chaleur).',
+          `Repère : ne perds pas plus de ${hydration().maxLoss} kg pendant une sortie, mais ne finis jamais plus lourd qu’au départ (trop boire est dangereux).`,
         ]],
         ['Après', [
-          'Pèse-toi avant et après une sortie longue : chaque kilo perdu se compense par environ 1,5 litre de boisson sur les heures suivantes.',
+          `Pèse-toi avant et après une sortie longue : chaque kilo perdu se compense par ${hydration().perKg} sur les heures suivantes.`,
           'Par forte chaleur ou si tu transpires beaucoup (traces blanches sur la casquette), sale un peu plus le repas ou prends une boisson d’effort.',
         ]],
       ],
@@ -93,10 +80,9 @@ export function articles() {
       id: 'recuperation', title: 'Récupérer', lead: 'Le progrès se fait pendant le repos : sommeil, repas, séances faciles.',
       body: [
         ['Dans l’heure qui suit une séance dure', [
-          `Glucides : ${perKg(1)}, pour recharger les muscles.`,
-          `Protéines : ${perKg(0.3)}, pour les réparer.`,
-          'Exemples : un grand verre de lait chocolaté ; un yaourt, une banane et une tranche de pain ; un repas complet si c’est l’heure.',
-          'Après un footing facile, un repas normal suffit.',
+          `En collation : ${recovery().snack}.`,
+          `Ou, si c’est l’heure du repas : ${recovery().meal}.`,
+          'De quoi recharger les muscles (les glucides) et les réparer (les protéines). Après un footing facile, un repas normal suffit.',
         ]],
         ['Le sommeil, premier outil', [
           'Vise 7 à 9 heures par nuit. Une courte sieste de 20 minutes aide aussi.',
@@ -160,8 +146,8 @@ export function articles() {
       id: 'cafeine', title: 'Café et performance', lead: 'Un vrai coup de pouce les jours de course, à tester d’abord à l’entraînement.',
       body: [
         ['Ce qui marche', [
-          `Dose efficace : ${range(3, 6, 'mg')} de caféine, environ 1 heure avant. Un expresso contient environ 60 à 100 mg.`,
-          'Une dose plus faible (1 à 3 mg par kg) aide déjà, avec moins d’effets indésirables.',
+          coffee() ? `Pour toi : ${coffee()}, environ 1 heure avant une course ou une séance dure.` : 'Tu ne bois pas de café : inutile de commencer pour la course, il risque surtout de te nouer l’estomac.',
+          'Un café filtre ou un thé fort marchent aussi ; les boissons énergisantes contiennent souvent beaucoup de sucre en plus.',
         ]],
         ['Les précautions', [
           'Essaie-le d’abord avant une séance dure, jamais pour la première fois le jour de la course.',
@@ -187,9 +173,13 @@ export function sessionTips(s) {
   if (s.type === 'objectif') return null; // la course a son propre guide
 
   if (hard || long) {
-    tips.before.push('Repas 2 à 3 heures avant, riche en glucides et léger en graisses, ou une banane 30 à 60 minutes avant.');
+    const m = preMeal();
+    tips.before.push(`${cap(m.label)} : ${m.main}.`);
+    tips.before.push(`Ou, 30 à 60 minutes avant : ${preSnack()}.`);
   } else {
-    tips.before.push('Footing facile : à jeun possible si tu le supportes, sinon une petite collation.');
+    tips.before.push(foodProfile().moment === 'matin'
+      ? 'Footing facile le matin : à jeun possible si tu le supportes, sinon une banane.'
+      : 'Footing facile : pas besoin de manger spécialement avant.');
   }
   if (hard) tips.routines.push(['echauffement', 'Après le footing d’échauffement : 6 minutes d’éducatifs']);
 
@@ -200,7 +190,7 @@ export function sessionTips(s) {
   }
 
   if (hard || long) {
-    tips.after.push(`Dans l’heure : glucides (${perKg(1)}) et protéines (${perKg(0.3)}). Par exemple un grand verre de lait chocolaté, ou yaourt, banane et pain.`);
+    tips.after.push(`Dans l’heure : ${recovery().snack}. Ou un repas : ${recovery().meal}.`);
     tips.routines.push(['retour-calme', '8 minutes de retour au calme']);
   } else {
     tips.after.push('Un repas normal suffit.');
@@ -239,7 +229,7 @@ export function viewJourJ(today) {
   const long = dist >= 21097;
   const marathon = dist >= 42195;
   const days = race ? daysBetween(today, race.date) : null;
-  const w = kg();
+  const cafe = coffee();
 
   const splits = goalPace ? (() => {
     const marks = [];
@@ -262,21 +252,24 @@ export function viewJourJ(today) {
       'Prépare tout la veille : dossard, épingles, tenue testée, chaussures déjà portées, montre chargée.',
     ])}
 
-    ${sec(long ? 'La recharge en glucides' : 'Les repas des derniers jours', long ? [
-      `Les ${marathon ? '2 jours' : '1 à 2 jours'} avant : ${range(marathon ? 10 : 8, marathon ? 12 : 10)} de glucides par jour. Pâtes, riz, pain, pommes de terre, jus de fruits.`,
-      'Réduis en même temps les fibres et les graisses pour alléger la digestion.',
-      'Prendre 1 à 2 kg pendant la recharge est normal : c’est de l’eau stockée avec les glucides.',
-    ] : [
+    ${long ? `<section class="jj-block">
+      <h2 class="section-title">La recharge en glucides</h2>
+      <p>Les ${marathon ? '2 jours' : 'deux derniers jours'} avant la course, une journée type :</p>
+      <dl class="menu">${loadingDay(marathon ? 10 : 8).map(([l, t]) => `<div><dt>${l}</dt><dd>${esc(cap(t))}</dd></div>`).join('')}</dl>
+      <ul>
+        <li>Peu de légumes, de crudités et de légumes secs ces jours-là : moins de fibres, digestion plus légère.</li>
+        <li>Trop copieux ? Remplace une partie des féculents par du jus ou du sirop.</li>
+        <li>Prendre 1 à 2 kg est normal : c’est de l’eau stockée avec les glucides.</li>
+      </ul>
+    </section>` : sec('Les repas des derniers jours', [
       'Pas de recharge spéciale pour un 3, 5 ou 10 km : elle ne sert que pour les courses de plus de 90 minutes.',
-      'La veille, un repas normal, plutôt riche en glucides, sans excès ni plat inhabituel.',
+      'La veille, un repas normal avec une bonne part de féculents (la moitié de l’assiette), sans excès ni plat inhabituel.',
     ])}
 
     ${sec('Le matin', [
-      long
-        ? `Petit-déjeuner 3 heures avant : ${w ? `${Math.round((w * 2) / 10) * 10} à ${Math.round((w * 3) / 10) * 10} g` : '2 à 3 g par kg'} de glucides que tu connais (pain, confiture, miel, flocons d’avoine, banane), peu de fibres et de graisses.`
-        : 'Petit-déjeuner habituel et léger, 2 à 3 heures avant (pain, confiture ou miel, une banane) : pour une course courte, pas besoin de manger plus.',
+      `Petit-déjeuner ${long ? '3 heures' : '2 à 3 heures'} avant : ${raceBreakfast(long)}. Des aliments que tu connais, peu de gras et de fibres.`,
       'Un grand verre d’eau au réveil, puis par petites gorgées jusqu’à une heure avant.',
-      `Café si tu l’as testé à l’entraînement : ${perKg(3, 'mg', 10)} de caféine une heure avant le départ (un expresso ≈ 80 mg). Si tu n’en bois pas d’habitude, ${perKg(1.5, 'mg', 10)} suffisent.`,
+      cafe ? `Café, si tu l’as testé à l’entraînement : ${cafe} une heure avant le départ.` : null,
     ])}
 
     ${sec('L’échauffement', marathon ? [
@@ -309,12 +302,12 @@ export function viewJourJ(today) {
     ])}
 
     ${sec('Après', [
-      `Dans l’heure : boisson, glucides (${perKg(1)}) et protéines (${perKg(0.3)}).`,
+      `Dans l’heure : de l’eau, puis ${recovery().snack}.`,
       'Marche 10 minutes plutôt que de t’asseoir tout de suite.',
       marathon ? 'Les 1 à 2 semaines suivantes : repos puis reprise très douce. Le corps a besoin de récupérer, même si les jambes vont mieux.' : 'Le lendemain : repos ou 20 minutes très faciles. Puis tu choisis ton prochain objectif !',
     ])}
 
-    ${!w ? '<p class="hint">Indique ton poids dans Conseils pour des quantités précises.</p>' : ''}
+    <p class="hint">${portionNote()}</p>
     <p class="hint">Repères généraux pour des adultes en bonne santé, ce ne sont pas des conseils médicaux.</p>
     <p class="sources">Sources : ${['gssi', 'fluid', 'issn'].map((k) => `<a href="${SOURCES[k][1]}" target="_blank" rel="noopener">${SOURCES[k][0]}</a>`).join(' · ')}</p>`;
 }
@@ -343,11 +336,7 @@ export function viewConseils(today, routines) {
       ${articles().map((a) => `<li><a href="#/conseil/${a.id}"><span class="art-title">${esc(a.title)}</span><span class="art-lead">${esc(a.lead)}</span></a></li>`).join('')}
     </ul>
 
-    <section class="panel">
-      <h2>Ton poids (facultatif)</h2>
-      <p>Pour transformer « grammes par kilo » en quantités précises. Il reste sur ce téléphone.</p>
-      <label class="field weight-field"><span class="unit-input"><input data-weight inputmode="decimal" autocomplete="off" value="${kg() ?? ''}" aria-label="Poids en kilos"><em>kg</em></span></label>
-    </section>
+    ${profilePanel()}
     <p class="hint">Repères généraux pour des adultes en bonne santé. En cas de maladie, de traitement ou de grossesse, demande l’avis d’un professionnel de santé.</p>`;
 }
 
@@ -360,7 +349,7 @@ export function viewArticle(id) {
     <p class="lede">${esc(a.lead)}</p>
     ${a.body.map(([h, items]) => `<section class="jj-block"><h2 class="section-title">${esc(h)}</h2><ul>${items.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></section>`).join('')}
     ${a.routine ? `<div class="form-actions">${a.routine.map((r) => `<a class="btn btn-primary" href="#/routine/${r}">Lancer la routine</a>`).join('')}</div>` : ''}
-    ${a.body.some(([, items]) => items.some((x) => /par kg/.test(x))) && !kg() ? '<p class="hint">Indique ton poids dans Conseils pour des quantités précises.</p>' : ''}
+    ${['alimentation', 'avant', 'hydratation', 'recuperation', 'cafeine'].includes(a.id) ? `<p class="hint">${portionNote()} <a href="#/conseils">Modifier mon profil</a></p>` : ''}
     ${a.sources ? `<p class="sources">Sources : ${a.sources.map((k) => `<a href="${SOURCES[k][1]}" target="_blank" rel="noopener">${SOURCES[k][0]}</a>`).join(' · ')}</p>` : ''}`;
 }
 
@@ -380,7 +369,41 @@ export function todayTip(next, today) {
   return `<a class="tip-card" href="#/seance/${next.id}"><span class="tip-title">Conseil</span><span>${esc(text)}</span></a>`;
 }
 
-export function saveWeight(v) {
-  const n = parseFloat(String(v).replace(',', '.'));
-  store.saveTools({ weight: Number.isFinite(n) && n >= 35 && n <= 160 ? Math.round(n * 10) / 10 : null });
+/* ---------- Profil alimentaire ---------- */
+
+export function profileFields(pr) {
+  const r = (v, l) => `<label><input type="radio" name="pf-regime" value="${v}" ${pr.regime === v ? 'checked' : ''} data-pref="regime"><span>${l}</span></label>`;
+  const c = (k, l, on) => `<label class="pf-check"><input type="checkbox" data-pref="${k}" ${on ? 'checked' : ''}> ${l}</label>`;
+  const m = (v, l) => `<label><input type="radio" name="pf-moment" value="${v}" ${pr.moment === v ? 'checked' : ''} data-pref="moment"><span>${l}</span></label>`;
+  return `
+    <label class="field weight-field"><span>Poids</span><span class="unit-input"><input data-pref="weight" inputmode="decimal" autocomplete="off" value="${pr.weight ?? ''}" aria-label="Poids en kilos"><em>kg</em></span></label>
+    <div class="field"><span>Je mange</span><div class="segmented segmented-compact">${r('omni', 'De tout')}${r('vege', 'Végétarien')}${r('vegan', 'Végétalien')}</div></div>
+    <div class="pf-checks">${c('noLactose', 'Sans lactose', pr.noLactose)}${c('noGluten', 'Sans gluten', pr.noGluten)}${c('coffee', 'Je bois du café', pr.coffee)}</div>
+    <div class="field"><span>Je cours plutôt</span><div class="segmented segmented-compact">${m('matin', 'Matin')}${m('midi', 'Midi')}${m('soir', 'Soir')}${m('variable', 'Variable')}</div></div>`;
+}
+
+function profilePanel() {
+  return `
+    <section class="panel" data-profile>
+      <h2>Mon profil</h2>
+      <p>Pour des conseils en portions concrètes, adaptés à ton alimentation. Il reste sur ce téléphone.</p>
+      ${profileFields(foodProfile())}
+    </section>`;
+}
+
+// Lit un champ du profil et l'enregistre
+export function savePref(el) {
+  const t = store.tools;
+  const diet = { ...(t.diet || {}) };
+  const k = el.dataset.pref;
+  if (k === 'weight') {
+    const n = parseFloat(String(el.value).replace(',', '.'));
+    store.saveTools({ weight: Number.isFinite(n) && n >= 35 && n <= 160 ? Math.round(n * 10) / 10 : null });
+    return;
+  }
+  if (k === 'moment') { store.saveTools({ moment: el.value }); return; }
+  if (k === 'regime') diet.regime = el.value;
+  else if (k === 'coffee') diet.coffee = el.checked;
+  else diet[k] = el.checked;
+  store.saveTools({ diet });
 }
