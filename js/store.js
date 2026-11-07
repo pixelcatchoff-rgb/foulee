@@ -146,6 +146,11 @@ export const store = {
       this.replacePlan(data.plan);
       // Un fichier programme peut aussi apporter des sorties (archive Strava)
       if (Array.isArray(data.activities) && data.activities.length) this.addActivities(data.activities);
+      // Un fichier programme peut aussi apporter le profil (poids, alimentation, moment de course)
+      if (data.profile && typeof data.profile === 'object') {
+        const { weight, diet, moment } = data.profile;
+        this.saveTools({ ...(weight ? { weight } : {}), ...(diet ? { diet } : {}), ...(moment ? { moment } : {}) });
+      }
       return 'programme';
     }
     if (!data.log) throw new Error('Cette sauvegarde est incomplète.');
