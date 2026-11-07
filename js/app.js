@@ -647,7 +647,7 @@ function handleExtrasClick(ev) {
   ev.preventDefault();
   if ('icsAll' in t.dataset) {
     const n = calendarAll(today());
-    toast(n ? `${n} séances envoyées au calendrier` : 'Aucune séance à venir');
+    if (!n) toast('Aucune séance à venir');
   } else if (t.dataset.icsOne) {
     calendarOne(t.dataset.icsOne);
   } else if (t.dataset.shareSession) {

@@ -56,24 +56,60 @@ export function icsFor(sessions, plan = store.plan) {
   return lines.map(fold).join('\r\n');
 }
 
-// Ouvre le fichier : sur iPhone, Safari propose « Tout ajouter » au calendrier.
-export function openCalendar(text, name) {
+// Sur ordinateur et Android : téléchargement du fichier.
+// Sur iPhone, l'appli installée ne sait pas ouvrir un fichier créé sur place (page blanche) :
+// on propose deux chemins, ouvrir directement dans Calendrier, ou enregistrer le fichier puis l'ouvrir.
+const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+export function openCalendar(text, name, count = 1) {
   const file = new File([text], name, { type: 'text/calendar' });
-  const url = URL.createObjectURL(file);
-  const a = document.createElement('a');
-  a.href = url;
-  if (!/iPhone|iPad|iPod/.test(navigator.userAgent)) a.download = name;
-  else a.target = '_blank';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  if (!isIOS()) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(file);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+    return;
+  }
+  document.querySelector('.sheet-wrap')?.remove();
+  const wrap = document.createElement('div');
+  wrap.className = 'sheet-wrap';
+  wrap.innerHTML = `
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-t">
+      <h2 id="sheet-t" class="section-title">Ajouter au calendrier</h2>
+      <p>${count > 1 ? `${count} séances` : '1 séance'}, avec une alerte la veille à 18 h.</p>
+      <button class="btn btn-primary btn-big" data-sheet="open">Ouvrir dans Calendrier</button>
+      <p class="hint">iOS affiche les séances : touche « Tout ajouter », puis reviens dans Foulée.</p>
+      <button class="btn btn-big" data-sheet="save">Enregistrer le fichier</button>
+      <p class="hint">Si rien ne s’ouvre : choisis « Enregistrer dans Fichiers », ouvre l’app Fichiers, touche le fichier « ${name} », puis « Tout ajouter ».</p>
+      <button class="btn btn-ghost" data-sheet="close">Fermer</button>
+    </div>`;
+  document.body.appendChild(wrap);
+  wrap.addEventListener('click', async (ev) => {
+    const b = ev.target.closest('[data-sheet]');
+    if (!b && ev.target !== wrap) return;
+    const act = b?.dataset.sheet || 'close';
+    if (act === 'open') {
+      location.href = `data:text/calendar;charset=utf-8,${encodeURIComponent(text)}`;
+    } else if (act === 'save') {
+      if (navigator.canShare?.({ files: [file] })) {
+        try { await navigator.share({ files: [file] }); } catch { /* annulé */ }
+      } else {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(file);
+        a.download = name;
+        a.click();
+      }
+    } else wrap.remove();
+  });
 }
 
 export function calendarAll(t) {
   const list = allSessions().filter((s) => s.date >= t && !store.entry(s.id)?.done);
   if (!list.length) return 0;
-  openCalendar(icsFor(list), 'foulee-seances.ics');
+  openCalendar(icsFor(list), 'foulee-seances.ics', list.length);
   return list.length;
 }
 

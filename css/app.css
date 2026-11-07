@@ -1059,3 +1059,13 @@ a.cal-day { background: var(--surface-2); }
   :root:not([data-theme="dark"]) .quiz-options.is-big .quiz-option { background-image: linear-gradient(120deg, var(--surface-2), var(--surface) 60%); }
   :root:not([data-theme="dark"]) .chart .dot { stroke: #fff; }
 }
+
+/* Fenêtre « Ajouter au calendrier » (iPhone) */
+.sheet-wrap { position: fixed; inset: 0; z-index: 50; background: rgba(0, 0, 0, .55); display: grid; align-items: end; }
+.sheet {
+  display: grid; gap: 8px; max-width: 560px; width: 100%; margin: 0 auto; padding: 18px 18px calc(env(safe-area-inset-bottom) + 18px);
+  background: var(--surface); border-top: 1px solid var(--line); border-radius: 22px 22px 0 0;
+}
+.sheet .section-title { margin: 0 0 2px; }
+.sheet p { margin: 0 0 6px; }
+.sheet .hint { margin-top: -2px; }
