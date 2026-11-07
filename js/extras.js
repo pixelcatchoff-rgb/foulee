@@ -80,11 +80,11 @@ export function openCalendar(text, name, count = 1) {
     <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-t">
       <h2 id="sheet-t" class="section-title">Ajouter au calendrier</h2>
       <p>${count > 1 ? `${count} séances` : '1 séance'}, avec une alerte la veille à 18 h.</p>
-      <button class="btn btn-primary btn-big" data-sheet="save">Enregistrer le fichier</button>
+      <button class="btn btn-primary btn-big" data-sheet="save">Envoyer le fichier par Mail</button>
       <ol class="sheet-steps">
-        <li>Choisis « Enregistrer dans Fichiers ».</li>
-        <li>Dans l’app Fichiers, touche une fois « ${name} » : la liste des séances s’affiche.</li>
-        <li>Touche le bouton Partager en bas à droite, puis Calendrier (ou « Tout ajouter » s’il apparaît).</li>
+        <li>Choisis Mail et envoie-le à ta propre adresse.</li>
+        <li>Ouvre ce mail dans l’app Mail de l’iPhone.</li>
+        <li>Touche la pièce jointe « ${name} », puis « Tout ajouter ».</li>
       </ol>
       <button class="btn btn-big" data-sheet="open">Essayer d’ouvrir directement</button>
       <button class="btn btn-ghost" data-sheet="close">Fermer</button>
