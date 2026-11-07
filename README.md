@@ -2,8 +2,10 @@
 
 Ton programme de course à pied, séance par séance. Une appli web installable (iPhone et Android), hébergée sur GitHub Pages : https://pixelcatchoff-rgb.github.io/foulee/
 
-## Ce que fait la version 2.0
+## Ce que fait la version 3.0
 
+- **Design « piste de nuit »** : thème sombre, cartes de séance avec durée, distance, allure et difficulté, icônes hexagonales, estimation du chrono du jour J avec fiabilité, série de séances, bilan de la semaine, bandeau des semaines, records.
+- **Coach** : adapter une séance (fatigue, chaleur, peu de temps, douleur) avec proposition à accepter ou refuser, déplacer une séance dans la semaine, « Pourquoi cette séance ».
 - **Aujourd’hui** : la prochaine séance, le couloir de progression du programme, la régularité et le compte à rebours.
 - **Programme** : les semaines en 3 phases (base, vitesse, spécifique), séances à cocher, compte rendu de chaque séance (durée, distance, ressenti, note) et marche à suivre pour la programmer sur l’Apple Watch.
 - **Questionnaire de départ** : objectif, distance, pratique actuelle, plus longue sortie, ancienneté, chrono récent, blessures, âge, disponibilités, dates. Il en déduit le niveau (débutant complet à expert), les allures personnelles et un chrono conseillé, puis construit le programme.
@@ -41,6 +43,8 @@ Ouvre le site dans Safari sur iPhone, touche Partager, puis « Sur l’écran d�
 | `js/store.js` | Données sur le téléphone, rattachement des sorties aux séances |
 | `js/coach.js` | Moteur d’entraînement (niveau, VDOT, allures, programme, adaptation) |
 | `js/quiz.js` | Questionnaire de départ |
+| `js/ui.js`, `js/adapt.js` | Cartes, estimation, bilan, adaptation et déplacement des séances |
+| `js/foods.js` | Repères nutritionnels traduits en portions d’aliments |
 | `js/conseils.js`, `js/routines.js` | Conseils, guide du jour J, routines guidées |
 | `js/steps.js` | Étapes des séances et guide Apple Watch |
 | `js/tools.js` | Calculateurs |

@@ -1,5 +1,5 @@
 // Fonctionne hors connexion : les fichiers de l'appli sont gardés en cache.
-const VERSION = 'foulee-2.2.0';
+const VERSION = 'foulee-3.0.0';
 const SHELL = [
   './',
   './index.html',
@@ -18,6 +18,8 @@ const SHELL = [
   './js/quiz.js',
   './js/conseils.js',
   './js/foods.js',
+  './js/ui.js',
+  './js/adapt.js',
   './js/routines.js',
   './js/live.js',
   './js/map.js',

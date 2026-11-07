@@ -1,5 +1,6 @@
 // Onglet Analyse : volume, allures, fréquence cardiaque, tests et liste des sorties.
 import { allRuns, allSessions, store } from './store.js';
+import { records } from './ui.js';
 import { addDays, clock, dateShort, dayMonth, daysBetween, esc, parseISO } from './util.js';
 
 const W = 340;
@@ -202,6 +203,7 @@ export function viewAnalyse(ctx, strava) {
       <p class="legend"><span class="lg-dot"></span>une sortie <span class="lg-band"></span>sous 150, l’aisance</p>
     </section>` : ''}
 
+    ${records(runs)}
     ${testsBlock(ctx)}
 
     <section class="analyse-block">

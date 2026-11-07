@@ -3,6 +3,12 @@ import { describe, watchGuide, totalTime } from './steps.js';
 import { viewTools, bindTools, DISTANCES } from './tools.js';
 import { viewAnalyse } from './analyse.js';
 import {
+  sessionCard, estimateCard, streakPill, weekReview, weekStrip, weekLabel, difficulty, statsRow, hexIcon,
+} from './ui.js';
+import {
+  adaptBlock, moveBlock, why, applyAdapt, undoAdapt, moveSession,
+} from './adapt.js';
+import {
   viewConseils, viewArticle, viewJourJ, sessionTipsHTML, todayTip, savePref,
 } from './conseils.js';
 import {
@@ -109,7 +115,7 @@ function lane(ctx) {
 
 function welcome(title = 'Bienvenue sur Foulée') {
   return `
-    <section class="hero t-easy">
+    <section class="hero welcome t-easy">
       <h1 class="hero-title">${title}</h1>
       <p class="hero-meta">Indique ton objectif, ta date et un chrono récent : Foulée construit ton programme séance par séance, avec tes allures.</p>
       <div class="hero-actions">
@@ -137,25 +143,31 @@ function viewToday() {
   const daysLeft = daysBetween(ctx.t, ctx.goalDate);
 
   let lead;
-  if (!ctx.started) {
-    lead = `<p class="kicker">Départ ${dateLong(ctx.plan.start).toLowerCase()}</p>`;
-  } else if (ctx.finished) {
-    lead = `<p class="kicker">Programme terminé</p>`;
-  } else {
-    lead = `<p class="kicker">Semaine ${ctx.weekNow} sur ${ctx.plan.weeks.length} · phase ${phaseOf(ctx.plan, ctx.weekNow)?.name.toLowerCase() ?? ''}</p>`;
-  }
+  if (!ctx.started) lead = `Départ ${dateLong(ctx.plan.start).toLowerCase()}`;
+  else if (ctx.finished) lead = 'Programme terminé';
+  else lead = `Semaine ${ctx.weekNow}/${ctx.plan.weeks.length} · ${phaseOf(ctx.plan, ctx.weekNow)?.name ?? ''}`;
 
+  const top = `
+    <header class="topbar">
+      <div><p class="brand">Foulée</p><p class="topbar-sub">${esc(lead)}</p></div>
+      ${streakPill(ctx)}
+    </header>`;
+
+  const [diff, dcls] = s ? difficulty(s) : [];
   const hero = s ? `
-    <section class="hero ${TYPE[s.type].cls}">
-      <p class="hero-when">${s.date === ctx.t ? 'Aujourd’hui' : dateLong(s.date)}</p>
-      <h1 class="hero-title">${esc(s.title)}</h1>
-      <p class="hero-meta">${TYPE[s.type].label} · environ ${Math.round(totalTime(s.steps) / 60)} min</p>
+    <section class="hero today t-${s.type}">
+      <a class="hero-main" href="#/seance/${s.id}">
+        ${hexIcon(s.type)}
+        <span class="hero-when">${s.date === ctx.t ? 'Aujourd’hui' : s.date === addDays(ctx.t, 1) ? 'Demain' : dateLong(s.date)}</span>
+        <span class="scard-diff d-${dcls}">${diff}</span>
+        <h1 class="hero-title">${esc(s.title)}</h1>
+        ${statsRow(s, false)}
+      </a>
       <div class="hero-actions">
-        <a class="btn btn-primary" href="#/seance/${s.id}">Voir la séance</a>
-        <a class="btn" href="#/courir/${s.id}">Courir avec Foulée</a>
-        <button class="btn btn-ghost" data-quickdone="${s.id}">Marquer comme faite</button>
+        <a class="btn btn-primary" href="#/courir/${s.id}">Courir</a>
+        <a class="btn" href="#/parcours/${s.id}">Parcours</a>
+        <button class="btn btn-ghost" data-quickdone="${s.id}">Faite</button>
       </div>
-      <a class="hero-link" href="#/parcours/${s.id}">Trouver une boucle de ${(sessionDistance(s, ctx.plan) / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} km autour de moi</a>
     </section>` : `
     <section class="hero t-goal">
       <h1 class="hero-title">Toutes les séances sont faites</h1>
@@ -178,45 +190,26 @@ function viewToday() {
 
   return `
     ${banner}
-    ${lead}
+    ${top}
+    ${estimateCard(ctx)}
     ${hero}
     ${missed}
     ${hardNotice}
     ${todayTip(s, ctx.t)}
+    ${weekReview(ctx)}
+    ${upcoming.length ? `
+      <h2 class="section-title">Ensuite</h2>
+      <ul class="scards">${upcoming.map((x) => sessionCard(x, ctx)).join('')}</ul>` : ''}
     ${lane(ctx)}
     <dl class="stats">
       <div><dt>Séances faites</dt><dd>${ctx.doneCount}<small>/${ctx.sessions.length}</small></dd></div>
       <div><dt>Régularité</dt><dd>${ctx.dueCount ? Math.round((ctx.doneCount / ctx.dueCount) * 100) : '–'}<small>${ctx.dueCount ? '%' : ''}</small></dd></div>
-      <div><dt>Jours avant l’objectif</dt><dd>${Math.max(0, daysLeft)}</dd></div>
+      <div><dt>Jours avant le jour J</dt><dd>${Math.max(0, daysLeft)}</dd></div>
     </dl>
-    ${upcoming.length ? `
-      <h2 class="section-title">Ensuite</h2>
-      <ul class="sessions">${upcoming.map((x) => sessionRow(x, ctx)).join('')}</ul>` : ''}
   `;
 }
 
 /* ---------- Écran : Programme ---------- */
-
-function sessionRow(s, ctx) {
-  const e = store.entry(s.id);
-  const isDone = !!e?.done;
-  const isToday = s.date === ctx.t;
-  const late = !isDone && s.date < ctx.t;
-  const meta = isDone && (e.duration || e.distance)
-    ? [e.duration ? clock(e.duration) : null, e.distance ? `${String(e.distance).replace('.', ',')} km` : null, e.rpe ? `ressenti ${e.rpe}/10` : null].filter(Boolean).join(' · ')
-    : TYPE[s.type].label;
-  return `
-    <li class="session ${TYPE[s.type].cls}${isDone ? ' is-done' : ''}${isToday ? ' is-today' : ''}${late ? ' is-late' : ''}">
-      <button class="check" data-toggle="${s.id}" aria-pressed="${isDone}" aria-label="${isDone ? 'Décocher' : 'Cocher'} ${esc(s.title)}">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12.5l4 4 8-9"/></svg>
-      </button>
-      <a href="#/seance/${s.id}" class="session-link">
-        <span class="session-date">${isToday ? 'Aujourd’hui' : dateShort(s.date)}</span>
-        <span class="session-title">${esc(s.title)}</span>
-        <span class="session-meta">${esc(meta)}</span>
-      </a>
-    </li>`;
-}
 
 // Profil et allures du coureur, recalculées après chaque test
 function pacesCard(plan) {
@@ -238,9 +231,13 @@ function viewPlan() {
   const { plan } = ctx;
   return `
     <h1 class="page-title">Programme</h1>
-    <p class="lede">${esc(plan.goal.label)} le ${dayMonth(ctx.goalDate)}${plan.goal.secondary ? `, puis ${esc(plan.goal.secondary)}` : ''}. Un jour de repos entre deux séances.</p>
-    <a class="btn btn-small" href="#/nouveau-programme">Nouveau programme</a>
-    ${plan.coach ? pacesCard(plan) : ''}
+    <p class="lede">${esc(plan.goal.label)} le ${dayMonth(ctx.goalDate)}${plan.goal.secondary ? `, puis ${esc(plan.goal.secondary)}` : ''}.</p>
+    ${estimateCard(ctx)}
+    ${weekStrip(ctx)}
+    <div class="plan-actions">
+      ${plan.coach ? pacesCard(plan) : ''}
+      <a class="btn btn-small" href="#/nouveau-programme">Nouveau programme</a>
+    </div>
     ${plan.phases.map((p) => `
       <section class="phase">
         <header class="phase-head">
@@ -252,14 +249,15 @@ function viewPlan() {
           const doneN = sess.filter(ctx.done).length;
           const isCurrent = w.n === ctx.weekNow;
           const first = sess[0].date;
+          const tag = weekLabel(w, plan);
           return `
           <details class="week${isCurrent ? ' is-current' : ''}" ${isCurrent || (!ctx.started && w.n === 1) ? 'open' : ''} id="semaine-${w.n}">
             <summary>
-              <span class="week-n">S${w.n}</span>
-              <span class="week-dates">${rangeLabel(first, addDays(ctx.plan.start, (w.n - 1) * 7 + 6))}${w.light ? ' · allégée' : ''}</span>
+              <span class="week-n">Sem ${w.n}</span>
+              <span class="week-dates">${tag ? `<b class="week-tag">${tag}</b>` : ''}${rangeLabel(first, addDays(ctx.plan.start, (w.n - 1) * 7 + 6))}${w.minutes ? ` · ${w.minutes >= 60 ? `${Math.floor(w.minutes / 60)} h ${String(w.minutes % 60).padStart(2, '0')}` : `${w.minutes} min`}` : ''}</span>
               <span class="week-count">${doneN}/${sess.length}</span>
             </summary>
-            <ul class="sessions">${sess.map((s) => sessionRow(s, ctx)).join('')}</ul>
+            <ul class="scards">${sess.map((s) => sessionCard(s, ctx, { featured: s === ctx.next })).join('')}</ul>
           </details>`;
         }).join('')}
       </section>`).join('')}
@@ -311,20 +309,29 @@ function viewSession(id) {
   const isTest = s.type === 'test' || s.type === 'objectif';
   const rpe = e.rpe || 0;
 
+  const [diff, dcls] = difficulty(s);
   return `
     <a class="back" href="#/programme" data-back>Programme</a>
-    <header class="session-head ${TYPE[s.type].cls}">
-      <p class="hero-when">${dateLong(s.date)} · semaine ${s.week}</p>
-      <h1 class="hero-title">${esc(s.title)}</h1>
-      <p class="hero-meta">${TYPE[s.type].label} · environ ${Math.round(totalTime(s.steps) / 60)} min${s.repere ? ` · repère ${clock(s.repere)}` : ''}</p>
+    <header class="hero session-head t-${s.type}">
+      <div class="hero-main">
+        ${hexIcon(s.type)}
+        <span class="hero-when">${dateLong(s.date)} · semaine ${s.week}</span>
+        <span class="scard-diff d-${dcls}">${diff}</span>
+        <h1 class="hero-title">${esc(s.title)}</h1>
+        ${statsRow(s, !!e.done)}
+        ${s.repere ? `<p class="hero-meta">Repère : ${clock(s.repere)}</p>` : ''}
+      </div>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="#/courir/${s.id}">Courir avec Foulée</a>
+        <a class="btn" href="#/parcours/${s.id}">Parcours</a>
+      </div>
     </header>
 
-    <div class="form-actions">
-      <a class="btn btn-primary" href="#/courir/${s.id}">Courir avec Foulée</a>
-      <a class="btn" href="#/parcours/${s.id}">Trouver un parcours</a>
-    </div>
+    <section class="why"><h2 class="why-title">Pourquoi cette séance</h2><p>${esc(why(s))}</p></section>
     ${stepsHTML(describe(s.steps))}
     ${s.note ? `<p class="note">${esc(s.note)}</p>` : ''}
+    ${adaptBlock(s, pendingAdapt?.id === s.id ? pendingAdapt.reason : null)}
+    ${moveBlock(s)}
     ${sessionTipsHTML(s)}
 
     <details class="watch">
@@ -479,7 +486,7 @@ function viewSettings() {
       <p>Efface ton programme, tes séances cochées et tes sorties importées. L’appli revient à zéro.</p>
       <button class="btn btn-ghost" data-reset>Effacer mes données</button>
     </section>
-    <p class="hint">Foulée, version 2.2</p>
+    <p class="hint">Foulée, version 3.0</p>
   `;
 }
 
@@ -543,6 +550,46 @@ function renderNow() {
 
 /* ---------- Actions ---------- */
 
+let pendingAdapt = null;
+function rerenderKeep() {
+  const y = window.scrollY;
+  lastHash = null;
+  render();
+  window.scrollTo(0, y);
+}
+
+function handleCoachClick(ev) {
+  const t = ev.target.closest('[data-adapt],[data-adapt-accept],[data-adapt-cancel],[data-adapt-undo],[data-move],[data-week-jump]');
+  if (!t) return false;
+  ev.preventDefault();
+  if (t.dataset.weekJump) {
+    const d = document.getElementById(`semaine-${t.dataset.weekJump}`);
+    if (d) { d.open = true; d.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+    return true;
+  }
+  const id = t.dataset.sid;
+  if (t.dataset.adapt) {
+    pendingAdapt = pendingAdapt?.id === id && pendingAdapt.reason === t.dataset.adapt ? null : { id, reason: t.dataset.adapt };
+    rerenderKeep();
+  } else if (t.dataset.adaptAccept) {
+    pendingAdapt = null;
+    if (applyAdapt(id, t.dataset.adaptAccept)) toast('Séance adaptée');
+    rerenderKeep();
+  } else if ('adaptCancel' in t.dataset) {
+    pendingAdapt = null;
+    rerenderKeep();
+  } else if ('adaptUndo' in t.dataset) {
+    undoAdapt(id);
+    toast('Séance prévue rétablie');
+    rerenderKeep();
+  } else if (t.dataset.move) {
+    moveSession(id, Number(t.dataset.move));
+    toast('Séance déplacée');
+    rerenderKeep();
+  }
+  return true;
+}
+
 function download(text, name) {
   const blob = new Blob([text], { type: 'application/json' });
   const a = document.createElement('a');
@@ -564,6 +611,7 @@ document.addEventListener('click', (ev) => {
   if (handleParcoursClick(ev, $view.querySelector('[data-parcours]'))) return;
   if (handleQuizClick(ev, $view.querySelector('[data-quiz]'))) return;
   if (handleRoutineClick(ev, $view.querySelector('[data-routine]'))) return;
+  if (handleCoachClick(ev)) return;
   const t = ev.target.closest('[data-toggle],[data-quickdone],[data-clear],[data-export],[data-reset],[data-back],[data-strava-connect],[data-strava-sync],[data-strava-disconnect],[data-clear-activities],[data-restore-plan],[data-export-plan],[data-live-act],[data-delete-activity]');
   if (!t) return;
   if (t.dataset.liveAct) {

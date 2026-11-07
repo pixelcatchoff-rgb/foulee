@@ -98,7 +98,7 @@ function render() {
   if (s.custom) return head + CUSTOM[s.id]();
   const opts = typeof s.options === 'function' ? s.options() : s.options;
   return `${head}
-    <div class="quiz-options" role="list">
+    <div class="quiz-options${s.id === 'objective' || s.id === 'goalDist' ? ' is-big' : ''}" role="list">
       ${opts.map(([v, label, sub]) => `
         <button class="quiz-option${a[s.id] === v ? ' is-on' : ''}" data-q-answer="${esc(String(v))}" data-q-type="${typeof v}" role="listitem">
           <span>${esc(label)}</span>${sub ? `<small>${esc(sub)}</small>` : ''}
