@@ -57,7 +57,7 @@ const STEPS = [
     options: [[0, 'Moins de 10 minutes'], [1, '10 à 30 minutes'], [2, '30 minutes à 1 heure'], [3, '1 heure à 1 h 30'], [4, 'Plus de 1 h 30']],
   },
   {
-    id: 'experience', title: 'Depuis quand cours-tu régulièrement ?', show: runs,
+    id: 'experience', title: 'Depuis quand cours-tu régulièrement ?', show: () => runs() && !a.express,
     options: [[0, 'Moins de 3 mois'], [1, '3 à 12 mois'], [2, '1 à 3 ans'], [3, 'Plus de 3 ans']],
   },
   { id: 'race', title: 'As-tu un chrono récent ?', help: 'Une course ou une sortie à fond, de moins de 3 mois. C’est ce qui rend tes allures vraiment justes.', show: runs, custom: true },
@@ -69,8 +69,8 @@ const STEPS = [
     id: 'age', title: 'Ta tranche d’âge',
     options: [[0, 'Moins de 30 ans'], [1, '30 à 39 ans'], [2, '40 à 49 ans'], [3, '50 à 59 ans'], [4, '60 ans et plus']],
   },
-  { id: 'body', title: 'Ton profil', help: 'Pour des conseils en portions concrètes (combien de bananes, de tranches de pain…) adaptés à ton alimentation. Tout est facultatif et reste sur ton téléphone.', custom: true },
-  { id: 'avail', title: 'Ton temps pour courir', custom: true },
+  { id: 'body', title: 'Ton profil', help: 'Pour des conseils en portions concrètes (combien de bananes, de tranches de pain…) adaptés à ton alimentation. Tout est facultatif et reste sur ton téléphone.', custom: true, show: () => !a.express },
+  { id: 'avail', title: 'Ton temps pour courir', custom: true, show: () => !a.express },
   { id: 'dates', title: 'Quand ?', custom: true },
   { id: 'summary', title: 'Ton programme', custom: true },
 ];
@@ -103,7 +103,12 @@ function render() {
         <button class="quiz-option${a[s.id] === v ? ' is-on' : ''}" data-q-answer="${esc(String(v))}" data-q-type="${typeof v}" role="listitem">
           <span>${esc(label)}</span>${sub ? `<small>${esc(sub)}</small>` : ''}
         </button>`).join('')}
-    </div>`;
+    </div>
+    ${s.id === 'objective' ? `
+      <button class="quiz-express${a.express ? ' is-on' : ''}" data-q-express aria-pressed="${!!a.express}">
+        <b>${a.express ? 'Version rapide activée' : 'Version rapide'}</b>
+        <small>${a.express ? 'Les questions de détail sont passées : 3 séances par semaine (mardi, jeudi, dimanche), modifiables à la fin.' : 'Moins de questions, ton programme en une minute. Tu pourras préciser ensuite.'}</small>
+      </button>` : ''}`;
 }
 
 function hms(prefix, sec) {
@@ -246,6 +251,12 @@ const CUSTOM = {
         <ul class="gen-week">${plan.weeks[0].sessions.map((s) => `<li><span>${WEEKDAYS[(new Date(`${o.start}T12:00`).getDay() + s.day) % 7]}</span>${esc(s.title)}</li>`).join('')}</ul>
       </section>
 
+      ${a.express ? `
+      <section class="quiz-express-sum">
+        <p>Version rapide : ${isBeginner() ? 3 : a.perWeek} séances par semaine, ${a.days.slice().sort((x, y) => ORDER.indexOf(x) - ORDER.indexOf(y)).map((d) => WEEKDAYS[d].toLowerCase()).join(', ')}, sortie longue le ${WEEKDAYS[a.longDay].toLowerCase()}, 1 h maximum en semaine.</p>
+        <button class="btn btn-small" data-q-detail>Choisir mes jours et mon temps</button>
+      </section>` : ''}
+
       <section>
         <h2 class="section-title">Après tes séances dures</h2>
         <p>${esc(recovery().snack.charAt(0).toUpperCase() + recovery().snack.slice(1))}, dans l’heure.</p>
@@ -295,7 +306,7 @@ function options() {
     goalDist: needsDist() ? a.goalDist ?? 0 : 0,
     freq: a.objective === 'debut' ? 0 : a.freq ?? 0,
     longest: runs() ? a.longest ?? 0 : 0,
-    experience: runs() ? a.experience ?? 0 : 0,
+    experience: runs() ? (a.express ? (a.freq >= 3 ? 1 : 0) : a.experience ?? 0) : 0,
     race: runs() && a.race?.time ? a.race : null,
     injury: a.injury || 'non',
     age: a.age ?? 1,
@@ -328,7 +339,7 @@ function error(root, msg) {
 
 export function handleQuizClick(ev, root) {
   if (!root) return false;
-  const t = ev.target.closest('[data-q-answer],[data-q-back],[data-q-next],[data-q-skip],[data-q-create],[data-q-sugg]');
+  const t = ev.target.closest('[data-q-answer],[data-q-back],[data-q-next],[data-q-skip],[data-q-create],[data-q-sugg],[data-q-express],[data-q-detail]');
   if (!t) return false;
   const s = visible()[a.step];
 
@@ -339,6 +350,13 @@ export function handleQuizClick(ev, root) {
     if (s.id === 'goalDist') { a.goalTime = null; a.goalDate = null; }
     t.classList.add('is-on');
     setTimeout(() => next(root), 120);
+    return true;
+  }
+  if ('qExpress' in t.dataset) { a.express = !a.express; rerender(root); return true; }
+  if ('qDetail' in t.dataset) {
+    a.express = false;
+    a.step = visible().findIndex((x) => x.id === 'avail');
+    rerender(root);
     return true;
   }
   if ('qBack' in t.dataset) { a.step = Math.max(0, a.step - 1); rerender(root); return true; }

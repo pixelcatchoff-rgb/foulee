@@ -73,6 +73,10 @@ export function statsRow(s, done) {
 
 /* ---------- Carte de séance ---------- */
 
+// Dernière séance cochée : sa coche s'anime une fois
+let justDone = null;
+export function markJustDone(id) { justDone = id; setTimeout(() => { if (justDone === id) justDone = null; }, 1200); }
+
 export function sessionCard(s, ctx, { featured = false } = {}) {
   const e = store.entry(s.id);
   const isDone = !!e?.done;
@@ -82,7 +86,7 @@ export function sessionCard(s, ctx, { featured = false } = {}) {
   const [diff, dcls] = difficulty(s);
   const when = isToday ? 'Aujourd’hui' : tomorrow ? 'Demain' : dateShort(s.date);
   return `
-    <li class="scard t-${s.type}${featured ? ' is-featured' : ''}${isDone ? ' is-done' : ''}${late ? ' is-late' : ''}">
+    <li class="scard t-${s.type}${featured ? ' is-featured' : ''}${isDone ? ' is-done' : ''}${late ? ' is-late' : ''}${isDone && justDone === s.id ? ' just-done' : ''}">
       <a class="scard-link" href="#/seance/${s.id}">
         ${hexIcon(s.type)}
         <span class="scard-when${isToday || tomorrow ? ' is-soon' : ''}">${when}${late ? ' · pas cochée' : ''}${s.adapted ? ' · adaptée' : ''}</span>

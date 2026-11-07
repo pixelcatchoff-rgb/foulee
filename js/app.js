@@ -3,7 +3,7 @@ import { describe, watchGuide, totalTime } from './steps.js';
 import { viewTools, bindTools, DISTANCES } from './tools.js';
 import { viewAnalyse } from './analyse.js';
 import {
-  sessionCard, estimateCard, streakPill, weekReview, weekStrip, weekLabel, difficulty, statsRow, hexIcon,
+  sessionCard, estimateCard, streakPill, weekReview, weekStrip, weekLabel, difficulty, statsRow, hexIcon, markJustDone,
 } from './ui.js';
 import {
   adaptBlock, moveBlock, why, applyAdapt, undoAdapt, moveSession,
@@ -23,10 +23,15 @@ import {
   resume as liveResume, finish as liveFinish, discard as liveDiscard, saveRun, setVoice,
 } from './live.js';
 import { readStravaCSV } from './strava-csv.js';
+import {
+  calendarAll, calendarOne, shareSession, shareActivity, viewDefis, importChallenge, removeFriend, shareChallenge,
+  weatherBlock, enableWeather, loadWeather, weatherReady, shoesBlock, addShoe, shoeAction, shoeNotice, painFields, readPain,
+  painNotice, shareBackup, backupNotice, firstSteps, weekRing, monthView,
+} from './extras.js';
 import { viewQuiz, handleQuizClick, handleQuizInput, setQuizToday } from './quiz.js';
 import { vdotFromRace, repace, zones as coachZones, ZONE_INFO } from './coach.js';
 import {
-  stravaConfigured, stravaConnected, connectStrava, handleStravaCallback, syncStrava, disconnectStrava,
+  stravaConfigured, stravaConnected, connectStrava, handleStravaCallback, syncStrava, disconnectStrava, stravaSetup,
 } from './strava.js';
 import {
   todayISO, daysBetween, dateLong, dateShort, dayMonth, clock, duration, esc, addDays, rangeLabel, distance,
@@ -150,7 +155,7 @@ function viewToday() {
   const top = `
     <header class="topbar">
       <div><p class="brand">Foulée</p><p class="topbar-sub">${esc(lead)}</p></div>
-      ${streakPill(ctx)}
+      <div class="topbar-right">${weekRing(ctx)}${streakPill(ctx)}</div>
     </header>`;
 
   const [diff, dcls] = s ? difficulty(s) : [];
@@ -193,8 +198,13 @@ function viewToday() {
     ${top}
     ${estimateCard(ctx)}
     ${hero}
+    ${weatherBlock(s, ctx.t)}
+    ${firstSteps()}
+    ${painNotice(ctx.t)}
     ${missed}
     ${hardNotice}
+    ${shoeNotice()}
+    ${backupNotice()}
     ${todayTip(s, ctx.t)}
     ${weekReview(ctx)}
     ${upcoming.length ? `
@@ -233,12 +243,19 @@ function viewPlan() {
     <h1 class="page-title">Programme</h1>
     <p class="lede">${esc(plan.goal.label)} le ${dayMonth(ctx.goalDate)}${plan.goal.secondary ? `, puis ${esc(plan.goal.secondary)}` : ''}.</p>
     ${estimateCard(ctx)}
-    ${weekStrip(ctx)}
+    <div class="segmented segmented-compact plan-switch" role="group" aria-label="Affichage">
+      <label><input type="radio" name="plan-view" value="weeks" data-plan-view ${planView() === 'weeks' ? 'checked' : ''}><span>Semaines</span></label>
+      <label><input type="radio" name="plan-view" value="month" data-plan-view ${planView() === 'month' ? 'checked' : ''}><span>Mois</span></label>
+    </div>
+    ${planView() === 'month' ? monthView(ctx, calMonth || ctx.t.slice(0, 7)) : weekStrip(ctx)}
     <div class="plan-actions">
       ${plan.coach ? pacesCard(plan) : ''}
-      <a class="btn btn-small" href="#/nouveau-programme">Nouveau programme</a>
+      <div class="form-actions">
+        <button class="btn btn-small" data-ics-all>Ajouter au calendrier</button>
+        <a class="btn btn-small btn-ghost" href="#/nouveau-programme">Nouveau programme</a>
+      </div>
     </div>
-    ${plan.phases.map((p) => `
+    ${planView() === 'month' ? '' : plan.phases.map((p) => `
       <section class="phase">
         <header class="phase-head">
           <h2>${esc(p.name)}</h2>
@@ -325,8 +342,12 @@ function viewSession(id) {
         <a class="btn btn-primary" href="#/courir/${s.id}">Courir avec Foulée</a>
         <a class="btn" href="#/parcours/${s.id}">Parcours</a>
       </div>
+      <div class="mini-actions">
+        ${e.done ? `<button class="linkish" data-share-session="${s.id}">Partager en image</button>` : `<button class="linkish" data-ics-one="${s.id}">Ajouter au calendrier</button>`}
+      </div>
     </header>
 
+    ${weatherBlock(s, today())}
     <section class="why"><h2 class="why-title">Pourquoi cette séance</h2><p>${esc(why(s))}</p></section>
     ${stepsHTML(describe(s.steps))}
     ${s.note ? `<p class="note">${esc(s.note)}</p>` : ''}
@@ -359,7 +380,8 @@ function viewSession(id) {
             <label><input type="radio" name="rpe" value="${n}" ${rpe === n ? 'checked' : ''}><span>${n}</span></label>`).join('')}
         </div>
       </fieldset>
-      <label class="field"><span>Note</span><textarea name="note" rows="2" placeholder="Sensations, météo, douleur…">${esc(e.note || '')}</textarea></label>
+      ${painFields(e)}
+      <label class="field"><span>Note</span><textarea name="note" rows="2" placeholder="Sensations, météo…">${esc(e.note || '')}</textarea></label>
       <div class="form-actions">
         <button class="btn btn-primary" type="submit">${e.done ? 'Mettre à jour' : 'Enregistrer la séance'}</button>
         ${e.done ? `<button class="btn btn-ghost" type="button" data-clear="${s.id}">Décocher</button>` : ''}
@@ -390,6 +412,16 @@ function viewAnalyseScreen() {
 
 /* ---------- Écran : Courir (accueil) ---------- */
 
+// Petits dessins au trait, dans le coin des cartes
+const ART = {
+  run: '<svg class="hub-art" viewBox="0 0 64 64" aria-hidden="true"><circle cx="38" cy="12" r="5"/><path d="M22 58l9-17 8 6v13M16 33l9-11 11 3 6 11 9 3M31 41l-3-12"/></svg>',
+  free: '<svg class="hub-art" viewBox="0 0 64 64" aria-hidden="true"><path d="M8 48c10-14 18 6 28-8s16-6 20-16"/><circle cx="8" cy="48" r="3"/><path d="M56 24v-12l8 4-8 4"/></svg>',
+  loop: '<svg class="hub-art" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 54c-14 0-22-8-22-20S20 10 32 12s24 8 22 22-8 20-22 20z" stroke-dasharray="4 5"/><path d="M32 8c-5 0-9 4-9 9 0 7 9 15 9 15s9-8 9-15c0-5-4-9-9-9z"/><circle cx="32" cy="17" r="3"/></svg>',
+  cup: '<svg class="hub-art" viewBox="0 0 64 64" aria-hidden="true"><path d="M20 56h24M32 56V42M22 10h20v14a10 10 0 0 1-20 0zM22 16h-8a7 7 0 0 0 8 9M42 16h8a7 7 0 0 1-8 9"/></svg>',
+  leaf: '<svg class="hub-art" viewBox="0 0 64 64" aria-hidden="true"><path d="M12 52C12 26 28 12 54 10c0 26-14 42-40 42zM12 52l26-26"/></svg>',
+  calc: '<svg class="hub-art" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="36" r="20"/><path d="M32 36V22M27 10h10M32 10v6M48 20l4-4"/></svg>',
+};
+
 function viewRunHub() {
   const ctx = context();
   const next = ctx.empty ? null : ctx.next;
@@ -402,22 +434,32 @@ function viewRunHub() {
     ${next ? `<p class="lede">Prochaine séance : ${esc(next.title)}, ${next.date === ctx.t ? 'aujourd’hui' : dateLong(next.date).toLowerCase()}.</p>` : '<p class="lede">Lance une sortie suivie par GPS, ou trouve une boucle autour de toi.</p>'}
     <ul class="hub">
       <li><a class="hub-card t-easy" href="${next ? `#/courir/${next.id}` : '#/courir'}">
+        ${ART.run}
         <span class="hub-title">Démarrer une course</span>
         <span class="hub-text">${next ? 'Séance guidée étape par étape, avec la voix.' : 'Sortie libre : carte, chrono, allure, annonces à chaque km.'}</span>
       </a></li>
       ${next ? `<li><a class="hub-card t-long" href="#/courir">
+        ${ART.free}
         <span class="hub-title">Sortie libre</span>
         <span class="hub-text">Sans séance : carte, chrono, allure, annonces à chaque km.</span>
       </a></li>` : ''}
       <li><a class="hub-card t-quality" href="${next ? `#/parcours/${next.id}` : '#/parcours'}">
+        ${ART.loop}
         <span class="hub-title">Trouver un parcours</span>
         <span class="hub-text">${next ? `Trois boucles de ${kmNext} km autour de toi, ou de l’endroit choisi sur la carte.` : 'Trois boucles autour de toi, ou de l’endroit choisi sur la carte.'}</span>
       </a></li>
+      <li><a class="hub-card t-test" href="#/defis">
+        ${ART.cup}
+        <span class="hub-title">Défis entre amis</span>
+        <span class="hub-text">Le classement des kilomètres du mois, par simple lien.</span>
+      </a></li>
       <li><a class="hub-card t-long" href="#/conseils">
+        ${ART.leaf}
         <span class="hub-title">Conseils et routines</span>
         <span class="hub-text">Alimentation, récupération, échauffement et renforcement guidés à la voix, guide du jour J.</span>
       </a></li>
       <li><a class="hub-card t-goal" href="#/outils">
+        ${ART.calc}
         <span class="hub-title">Calculateurs</span>
         <span class="hub-text">Allure, temps de passage, prédictions de chrono.</span>
       </a></li>
@@ -460,9 +502,21 @@ function viewSettings() {
       </div>
     </section>
     <section class="panel">
+      <h2>Affichage</h2>
+      <div class="segmented segmented-compact" role="group" aria-label="Thème">
+        ${[['dark', 'Sombre'], ['light', 'Clair'], ['auto', 'Auto']].map(([v, l]) => `<label><input type="radio" name="theme" value="${v}" data-theme-set ${(store.tools.theme || 'dark') === v ? 'checked' : ''}><span>${l}</span></label>`).join('')}
+      </div>
+      <p class="hint">Auto suit le réglage de ton téléphone. Le thème clair se lit mieux en plein soleil.</p>
+    </section>
+    <section class="panel">
+      <h2>Rappels</h2>
+      <p>Ajoute toutes tes séances à venir dans le calendrier du téléphone, avec une alerte la veille à 18 h. Refais-le après une adaptation ou un nouveau programme.</p>
+      <div class="form-actions"><button class="btn" data-ics-all ${store.plan ? '' : 'disabled'}>Ajouter au calendrier</button></div>
+    </section>
+    <section class="panel">
       <h2>Strava</h2>
       ${!stravaConfigured()
-        ? '<p>Tu peux importer ton archive Strava depuis l’onglet Analyse. La connexion automatique s’active une fois le relais installé (guide dans le dépôt GitHub, fichier docs/STRAVA.md).</p>'
+        ? stravaSetupPanel()
         : s?.refresh
           ? `<p>Connecté${s.athlete ? ` (${esc(s.athlete)})` : ''}. Les sorties récupérées par la connexion sont gardées 7 jours, comme le demande Strava ; ce que tu as rattaché à tes séances reste.</p>
              <div class="form-actions"><button class="btn" data-strava-sync>Synchroniser</button><button class="btn btn-ghost" data-strava-disconnect>Déconnecter Strava</button></div>`
@@ -471,9 +525,9 @@ function viewSettings() {
     </section>
     <section class="panel">
       <h2>Tes données</h2>
-      <p>Tout est enregistré sur ce téléphone, sans compte. Fais une sauvegarde de temps en temps, et avant de changer de téléphone.</p>
+      <p>Tout est enregistré sur ce téléphone, sans compte. Garde une copie dans Fichiers ou iCloud Drive : elle sert aussi à passer ton suivi sur un autre téléphone.${store.tools.lastBackup ? ` Dernière sauvegarde le ${new Date(store.tools.lastBackup).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}.` : ''}</p>
       <div class="form-actions">
-        <button class="btn btn-primary" data-export>Télécharger une sauvegarde</button>
+        <button class="btn btn-primary" data-backup-share>Sauvegarder</button>
         <label class="btn">Restaurer une sauvegarde<input type="file" accept="application/json,.json" data-import hidden></label>
       </div>
     </section>
@@ -486,8 +540,28 @@ function viewSettings() {
       <p>Efface ton programme, tes séances cochées et tes sorties importées. L’appli revient à zéro.</p>
       <button class="btn btn-ghost" data-reset>Effacer mes données</button>
     </section>
-    <p class="hint">Foulée, version 3.0</p>
+    <p class="hint">Foulée, version 3.1</p>
   `;
+}
+
+function stravaSetupPanel() {
+  const c = stravaSetup();
+  return `
+    <p>Tu peux importer ton archive Strava depuis l’onglet Analyse. Pour que tes sorties arrivent toutes seules, active la connexion (environ 15 minutes, une seule fois).</p>
+    <details class="howto">
+      <summary>Activer la connexion Strava</summary>
+      <ol>
+        <li>Sur strava.com/settings/api (dans Safari), crée une application : catégorie Training, site <code>https://pixelcatchoff-rgb.github.io/foulee/</code>, domaine de rappel <code>pixelcatchoff-rgb.github.io</code>.</li>
+        <li>Sur dash.cloudflare.com, crée un Worker nommé <code>foulee-strava</code>, colle le code du fichier <code>relay/worker.js</code> du dépôt, puis ajoute les variables <code>STRAVA_CLIENT_ID</code>, <code>STRAVA_CLIENT_SECRET</code> (en secret) et <code>ALLOWED_ORIGINS</code> = <code>https://pixelcatchoff-rgb.github.io</code>.</li>
+        <li>Recopie ici le Client ID et l’adresse du Worker. Le Client Secret ne se met jamais dans l’appli.</li>
+      </ol>
+      <form data-strava-setup>
+        <label class="field"><span>Client ID</span><input name="clientId" inputmode="numeric" autocomplete="off" value="${esc(c.clientId)}" placeholder="123456"></label>
+        <label class="field"><span>Adresse du relais</span><input name="relay" type="url" autocomplete="off" value="${esc(c.relay)}" placeholder="https://foulee-strava.ton-compte.workers.dev"></label>
+        <div class="form-actions"><button class="btn btn-primary" type="submit">Activer</button></div>
+      </form>
+      <p class="hint">Guide détaillé : fichier docs/STRAVA.md du dépôt GitHub.</p>
+    </details>`;
 }
 
 /* ---------- Routeur ---------- */
@@ -504,6 +578,8 @@ const routes = [
   [/^#\/jour-j$/, () => viewJourJ(today()), 'run'],
   [/^#\/routine\/([\w-]+)$/, (id) => viewRoutine(id), 'run'],
   [/^#\/outils$/, viewToolsScreen, 'run'],
+  [/^#\/defis$/, () => viewDefis(today()), 'run'],
+  [/^#\/defi\/([\w-]+)$/, (code) => { const r = importChallenge(code); setTimeout(() => { toast(r.message); location.replace('#/defis'); }, 0); return '<p class="lede">Ajout du défi…</p>'; }, 'run'],
   [/^#\/courir(?:\/([\w-]+))?$/, (sid) => viewLive(sid), 'run'],
   [/^#\/parcours(?:\/([\w-]+))?$/, (sid) => viewParcours(sid), 'run'],
   [/^#\/sortie\/(.+)$/, (id) => viewActivity(decodeURIComponent(id)), 'analyse'],
@@ -551,6 +627,64 @@ function renderNow() {
 /* ---------- Actions ---------- */
 
 let pendingAdapt = null;
+let calMonth = null;
+const planView = () => store.tools.planView || 'weeks';
+
+// Thème : sombre par défaut, clair, ou auto (réglage du téléphone)
+function applyTheme() {
+  const t = store.tools.theme || 'dark';
+  const root = document.documentElement;
+  if (t === 'auto') delete root.dataset.theme; else root.dataset.theme = t;
+  const light = t === 'light' || (t === 'auto' && matchMedia('(prefers-color-scheme: light)').matches);
+  document.querySelector('meta[name=theme-color]')?.setAttribute('content', light ? '#F3F5F9' : '#0A1120');
+}
+applyTheme();
+matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', applyTheme);
+
+function handleExtrasClick(ev) {
+  const t = ev.target.closest('[data-ics-all],[data-ics-one],[data-share-session],[data-share-activity],[data-defi-share],[data-defi-remove],[data-wx-enable],[data-wx-adapt],[data-shoe-act],[data-backup-share],[data-onboard-done],[data-cal]');
+  if (!t) return false;
+  ev.preventDefault();
+  if ('icsAll' in t.dataset) {
+    const n = calendarAll(today());
+    toast(n ? `${n} séances envoyées au calendrier` : 'Aucune séance à venir');
+  } else if (t.dataset.icsOne) {
+    calendarOne(t.dataset.icsOne);
+  } else if (t.dataset.shareSession) {
+    shareSession(t.dataset.shareSession).then((r) => { if (r === 'téléchargé') toast('Image téléchargée'); });
+  } else if (t.dataset.shareActivity) {
+    shareActivity(t.dataset.shareActivity).then((r) => { if (r === 'téléchargé') toast('Image téléchargée'); });
+  } else if ('defiShare' in t.dataset) {
+    if (!store.tools.name) { toast('Indique d’abord ton prénom'); document.querySelector('[data-defi-name]')?.focus(); return true; }
+    shareChallenge(today()).then((r) => { if (r === 'copié') toast('Lien copié : colle-le dans un message'); });
+  } else if (t.dataset.defiRemove) {
+    removeFriend(t.dataset.defiRemove);
+    rerenderKeep();
+  } else if ('wxEnable' in t.dataset) {
+    t.disabled = true;
+    enableWeather().then((r) => { toast(r.message); rerenderKeep(); });
+  } else if (t.dataset.wxAdapt) {
+    pendingAdapt = { id: t.dataset.wxAdapt, reason: 'chaleur' };
+    location.hash = `#/seance/${t.dataset.wxAdapt}`;
+    setTimeout(() => document.querySelector('.coach')?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 80);
+  } else if (t.dataset.shoeAct) {
+    if (t.dataset.shoeAct === 'delete' && !confirm('Supprimer cette paire ?')) return true;
+    shoeAction(t.dataset.shoe, t.dataset.shoeAct, today());
+    rerenderKeep();
+  } else if ('backupShare' in t.dataset) {
+    shareBackup(store.exportJSON(), `foulee-sauvegarde-${todayISO()}.json`).then((r) => {
+      if (r !== 'annulé') toast(r === 'partagé' ? 'Sauvegarde prête' : 'Sauvegarde téléchargée');
+      rerenderKeep();
+    });
+  } else if ('onboardDone' in t.dataset) {
+    store.saveTools({ onboarded: true });
+    rerenderKeep();
+  } else if (t.dataset.cal) {
+    calMonth = t.dataset.cal;
+    rerenderKeep();
+  }
+  return true;
+}
 function rerenderKeep() {
   const y = window.scrollY;
   lastHash = null;
@@ -612,6 +746,7 @@ document.addEventListener('click', (ev) => {
   if (handleQuizClick(ev, $view.querySelector('[data-quiz]'))) return;
   if (handleRoutineClick(ev, $view.querySelector('[data-routine]'))) return;
   if (handleCoachClick(ev)) return;
+  if (handleExtrasClick(ev)) return;
   const t = ev.target.closest('[data-toggle],[data-quickdone],[data-clear],[data-export],[data-reset],[data-back],[data-strava-connect],[data-strava-sync],[data-strava-disconnect],[data-clear-activities],[data-restore-plan],[data-export-plan],[data-live-act],[data-delete-activity]');
   if (!t) return;
   if (t.dataset.liveAct) {
@@ -656,15 +791,19 @@ document.addEventListener('click', (ev) => {
     }
   } else if (t.dataset.toggle) {
     const was = store.entry(t.dataset.toggle)?.done;
+    if (!was) { markJustDone(t.dataset.toggle); navigator.vibrate?.(15); }
     store.toggle(t.dataset.toggle);
     toast(was ? 'Séance décochée' : 'Séance cochée');
   } else if (t.dataset.quickdone) {
+    markJustDone(t.dataset.quickdone);
+    navigator.vibrate?.(15);
     store.save(t.dataset.quickdone, {});
     toast('Séance cochée');
   } else if (t.dataset.clear) {
     store.clear(t.dataset.clear);
     toast('Séance décochée');
   } else if ('export' in t.dataset) {
+    store.saveTools({ lastBackup: Date.now() });
     download(store.exportJSON(), `foulee-sauvegarde-${todayISO()}.json`);
   } else if ('reset' in t.dataset) {
     if (confirm('Effacer ton programme, tes séances et tes sorties ? Pense à télécharger une sauvegarde avant.')) {
@@ -688,6 +827,16 @@ document.addEventListener('change', async (ev) => {
     return;
   }
   if (handleParcoursInput(ev, $view.querySelector('[data-parcours]'))) { ev.target.blur(); return; }
+  if (ev.target.matches('[data-theme-set]')) { store.saveTools({ theme: ev.target.value }); applyTheme(); return; }
+  if (ev.target.matches('[data-plan-view]')) { store.saveTools({ planView: ev.target.value }); calMonth = null; rerenderKeep(); return; }
+  if (ev.target.matches('[data-defi-name]')) { store.saveTools({ name: ev.target.value.trim().slice(0, 24) }); rerenderKeep(); return; }
+  if (ev.target.matches('[data-hr-max]')) {
+    const n = parseInt(ev.target.value, 10);
+    store.saveTools({ fcMax: n >= 140 && n <= 230 ? n : null });
+    if (ev.target.value && !(n >= 140 && n <= 230)) toast('Une FC max se situe entre 140 et 230');
+    rerenderKeep();
+    return;
+  }
   if (ev.target.matches('[data-voice]')) { setVoice(ev.target.checked); return; }
   if (ev.target.matches('[data-import-csv]')) {
     const file = ev.target.files[0];
@@ -720,6 +869,28 @@ document.addEventListener('input', (ev) => {
 });
 
 document.addEventListener('submit', (ev) => {
+  const shoeForm = ev.target.closest('[data-shoe-form]');
+  if (shoeForm) {
+    ev.preventDefault();
+    const fd = new FormData(shoeForm);
+    addShoe({ name: String(fd.get('name') || '').trim(), since: fd.get('since') || today(), base: parseInt(fd.get('base'), 10) || 0 });
+    toast('Paire ajoutée');
+    rerenderKeep();
+    return;
+  }
+  const setup = ev.target.closest('[data-strava-setup]');
+  if (setup) {
+    ev.preventDefault();
+    const fd = new FormData(setup);
+    const clientId = String(fd.get('clientId') || '').trim();
+    const relayUrl = String(fd.get('relay') || '').trim();
+    if (!/^\d{3,10}$/.test(clientId)) { toast('Le Client ID est un nombre'); return; }
+    if (!/^https:\/\/[^\s]+$/.test(relayUrl)) { toast('L’adresse du relais commence par https://'); return; }
+    store.saveTools({ stravaClientId: clientId, stravaRelay: relayUrl });
+    toast('Connexion Strava activée');
+    rerenderKeep();
+    return;
+  }
   const form = ev.target.closest('[data-log]');
   if (!form) return;
   ev.preventDefault();
@@ -732,6 +903,7 @@ document.addEventListener('submit', (ev) => {
     distance: Number.isFinite(dist) ? dist : null,
     time3k,
     rpe: fd.get('rpe') ? Number(fd.get('rpe')) : null,
+    pain: readPain(fd),
     note: String(fd.get('note') || '').trim(),
   });
   // Programme adaptatif : un chrono de test recale les allures de la suite
@@ -774,6 +946,11 @@ document.addEventListener('touchmove', (e) => {
 store.subscribe(render);
 window.addEventListener('hashchange', render);
 render();
+
+// Météo : chargée au démarrage si elle est activée, puis l'écran se met à jour
+if (weatherReady()) loadWeather().then((w) => { if (w && document.querySelector('[data-wx-pending], .wx')) rerenderKeep(); });
+// Demande au navigateur de ne pas effacer les données de l'appli
+navigator.storage?.persist?.().catch(() => {});
 
 handleStravaCallback().then((r) => {
   if (r) { toast(r.message); if (r.ok) runSync(true); } else runSync(false);

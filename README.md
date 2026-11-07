@@ -2,6 +2,18 @@
 
 Ton programme de course à pied, séance par séance. Une appli web installable (iPhone et Android), hébergée sur GitHub Pages : https://pixelcatchoff-rgb.github.io/foulee/
 
+## Nouveautés de la version 3.1
+
+- **Rappels** : toutes les séances à venir dans le calendrier du téléphone (fichier .ics), avec une alerte la veille à 18 h.
+- **Météo de la séance** (Open-Meteo) : température ressentie, vent et pluie à l’heure où tu cours, conseils, et adaptation « chaleur » proposée d’office.
+- **Partage en image** d’une séance faite ou d’une sortie.
+- **Défis entre amis** : classement des kilomètres du mois par simple lien, sans compte ni serveur.
+- **Analyse** : points colorés (facile, séance rapide, footing trop rapide), zones cardiaques depuis ta FC max, kilométrage des chaussures, journal des douleurs.
+- **Programme** : vue du mois en calendrier, anneau de progression de la semaine, animation quand on coche.
+- **Thème clair** (ou automatique), premiers pas guidés, questionnaire en version rapide, sauvegarde partagée vers Fichiers ou iCloud Drive avec rappel toutes les 2 semaines.
+- **Hors connexion** : les zones de carte déjà affichées restent visibles sans réseau.
+- **Strava** : la connexion s’active directement dans Réglages (Client ID et adresse du relais).
+
 ## Ce que fait la version 3.0
 
 - **Design « piste de nuit »** : thème sombre, cartes de séance avec durée, distance, allure et difficulté, icônes hexagonales, estimation du chrono du jour J avec fiabilité, série de séances, bilan de la semaine, bandeau des semaines, records.

@@ -499,7 +499,7 @@ export function viewActivity(id) {
     ${a.splits?.length ? `
       <h2 class="section-title">Temps au kilomètre</h2>
       <ol class="split-list">${a.splits.map((s, i) => `<li><span>Km ${i + 1}</span><span>${clock(s)}</span></li>`).join('')}</ol>` : ''}
-    <div class="form-actions" style="margin-top:24px"><button class="btn btn-ghost" data-delete-activity="${esc(a.id)}">Supprimer cette sortie</button></div>`;
+    <div class="form-actions" style="margin-top:24px"><button class="btn" data-share-activity="${esc(a.id)}">Partager en image</button><button class="btn btn-ghost" data-delete-activity="${esc(a.id)}">Supprimer cette sortie</button></div>`;
 }
 
 export async function mountActivity(root, id) {

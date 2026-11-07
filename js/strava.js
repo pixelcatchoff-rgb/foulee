@@ -5,7 +5,13 @@ import { addDays } from './util.js';
 
 const SYNC_EVERY = 60 * 60 * 1000; // synchro automatique au plus une fois par heure
 
-export const stravaConfigured = () => !!(STRAVA.clientId && STRAVA.relay);
+// Réglages : ceux de config.js, ou ceux saisis dans Réglages (identifiant public et adresse du relais seulement)
+const cfg = () => ({
+  clientId: String(store.tools.stravaClientId || STRAVA.clientId || '').trim(),
+  relay: String(store.tools.stravaRelay || STRAVA.relay || '').trim(),
+});
+export const stravaConfigured = () => !!(cfg().clientId && cfg().relay);
+export const stravaSetup = () => cfg();
 export const stravaConnected = () => !!store.strava?.refresh;
 
 function redirectUri() {
@@ -14,7 +20,7 @@ function redirectUri() {
 
 export function connectStrava() {
   const p = new URLSearchParams({
-    client_id: STRAVA.clientId,
+    client_id: cfg().clientId,
     redirect_uri: redirectUri(),
     response_type: 'code',
     approval_prompt: 'auto',
@@ -25,7 +31,7 @@ export function connectStrava() {
 }
 
 async function relay(path, { method = 'GET', body, token } = {}) {
-  const res = await fetch(`${STRAVA.relay.replace(/\/$/, '')}${path}`, {
+  const res = await fetch(`${cfg().relay.replace(/\/$/, '')}${path}`, {
     method,
     headers: {
       ...(body ? { 'Content-Type': 'application/json' } : {}),

@@ -32,7 +32,9 @@ Par défaut, une nouvelle application ne peut connecter qu'**un seul compte**. P
 
 ## 3. Brancher l'appli
 
-Dans `js/config.js`, renseigne le Client ID et l'adresse du relais (ou envoie-les à Claude, qui le fait) :
+Le plus simple : dans Foulée, **Réglages**, puis **Strava**, puis « Activer la connexion Strava » : saisis le Client ID et l'adresse du relais, puis **Activer**.
+
+Pour que tes amis n'aient rien à saisir, renseigne-les plutôt une fois pour toutes dans `js/config.js` (ou envoie-les à Claude, qui le fait) :
 
 ```js
 export const STRAVA = {

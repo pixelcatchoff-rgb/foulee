@@ -2,6 +2,7 @@
 import { allRuns, allSessions, store } from './store.js';
 import { records } from './ui.js';
 import { addDays, clock, dateShort, dayMonth, daysBetween, esc, parseISO } from './util.js';
+import { hrBlock, easyHrCap, shoesBlock, painBlock } from './extras.js';
 
 const W = 340;
 
@@ -84,7 +85,7 @@ function timeChart(points, { invert = false, fmt = String, label, band, bandFit 
     ${ticks.map((v) => `<line x1="${left}" x2="${W - right}" y1="${y(v)}" y2="${y(v)}" class="grid"/><text x="${left - 6}" y="${y(v) + 4}" class="axis" text-anchor="end">${fmt(v)}</text>`).join('')}
     ${refLine ? `<polyline points="${refLine.map((p) => `${x(p.date)},${y(p.v)}`).join(' ')}" class="ref-line"/>` : ''}
     ${points.length > 2 ? `<polyline points="${avg.map((p) => `${x(p.date)},${y(p.v)}`).join(' ')}" class="trend"/>` : ''}
-    ${points.map((p) => `<circle cx="${x(p.date)}" cy="${y(p.v)}" r="4" class="dot"><title>${dateShort(p.date)} : ${fmt(p.v)}</title></circle>`).join('')}
+    ${points.map((p) => `<circle cx="${x(p.date)}" cy="${y(p.v)}" r="${p.cls ? 4.5 : 4}" class="dot${p.cls ? ` ${p.cls}` : ''}"><title>${dateShort(p.date)} : ${fmt(p.v)}${p.note ? ` · ${p.note}` : ''}</title></circle>`).join('')}
     <text x="${left}" y="${H - 6}" class="axis">${dayMonth(points[0].date)}</text>
     <text x="${W - right}" y="${H - 6}" class="axis" text-anchor="end">${dayMonth(points[points.length - 1].date)}</text>
   </svg>`;
@@ -166,14 +167,37 @@ export function viewAnalyse(ctx, strava) {
   if (!runs.length) {
     return `
       <h1 class="page-title">Analyse</h1>
-      <p class="lede">Importe tes sorties Strava ou remplis tes comptes rendus de séance : les graphiques apparaîtront ici.</p>
+      <div class="empty">
+        <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M10 54h44M16 54V38M28 54V26M40 54V32M52 54V16"/><path d="M14 30l12-10 12 6 14-14" stroke-dasharray="3 4"/></svg>
+        <p>Tes graphiques apparaîtront ici dès ta première sortie : kilomètres par semaine, allures, fréquence cardiaque, records.</p>
+      </div>
       ${importBlock}
-      ${testsBlock(ctx)}`;
+      ${testsBlock(ctx)}
+      ${shoesBlock(ctx.t)}
+      ${painBlock()}`;
   }
 
   const weeks = weeklyVolume(runs, store.plan, ctx.t);
-  const pacePts = runs.slice(-40).map((r) => ({ date: r.date, v: pace(r) }));
+  // Type de séance de chaque sortie, pour colorer les points : un footing trop rapide ressort en orange
+  const typeOf = {};
+  for (const s of allSessions()) {
+    const e = store.entry(s.id);
+    if (e?.activityId) typeOf[e.activityId] = s.type;
+    typeOf[`log-${s.id}`] = s.type;
+  }
+  const paceKind = (r) => {
+    if (!easy) return {};
+    const p = pace(r);
+    const t = typeOf[r.id];
+    const easyType = t === 'facile' || t === 'longue';
+    if (p < easy[0] - 5) return easyType ? { cls: 'is-fast', note: 'trop rapide pour un footing' } : (t ? { cls: 'is-work', note: 'séance rapide' } : { cls: 'is-work' });
+    if (p <= easy[1] + 20) return { cls: 'is-easy', note: 'zone facile' };
+    return { cls: 'is-slow' };
+  };
+  const pacePts = runs.slice(-40).map((r) => ({ date: r.date, v: pace(r), ...paceKind(r) }));
+  const fastEasy = pacePts.filter((p) => p.cls === 'is-fast').length;
   const hrPts = runs.slice(-40).filter((r) => r.hrAvg).map((r) => ({ date: r.date, v: r.hrAvg }));
+  const hrCap = easyHrCap() || 150;
 
   return `
     <h1 class="page-title">Analyse</h1>
@@ -192,19 +216,22 @@ export function viewAnalyse(ctx, strava) {
     <section class="analyse-block">
       <h2 class="section-title">Allure de chaque sortie</h2>
       ${timeChart(pacePts, { invert: true, fmt: (v) => clock(v), label: 'Allure par sortie', band: easy })}
-      <p class="legend"><span class="lg-dot"></span>une sortie <span class="lg-trend"></span>moyenne sur 4 sorties${easy ? '<span class="lg-band"></span>zone facile' : ''}</p>
-      <p class="hint">Plus haut = plus rapide.${easy ? ' Une majorité de points dans la zone facile, c’est le bon dosage.' : ''}</p>
+      <p class="legend">${easy ? '<span class="lg-dot is-easy"></span>facile <span class="lg-dot is-work"></span>séance rapide <span class="lg-dot is-fast"></span>footing trop rapide' : '<span class="lg-dot"></span>une sortie'} <span class="lg-trend"></span>moyenne sur 4</p>
+      <p class="hint">Plus haut = plus rapide.${easy ? ' Une majorité de points verts, c’est le bon dosage.' : ''}${fastEasy ? ` ${fastEasy} footing${fastEasy > 1 ? 's' : ''} couru${fastEasy > 1 ? 's' : ''} trop vite : ralentis, tu progresseras plus.` : ''}</p>
     </section>
 
     ${hrPts.length >= 2 ? `
     <section class="analyse-block">
       <h2 class="section-title">Fréquence cardiaque moyenne</h2>
-      ${timeChart(hrPts, { fmt: (v) => Math.round(v), label: 'Fréquence cardiaque moyenne', band: [0, 150], bandFit: false })}
-      <p class="legend"><span class="lg-dot"></span>une sortie <span class="lg-band"></span>sous 150, l’aisance</p>
+      ${timeChart(hrPts, { fmt: (v) => Math.round(v), label: 'Fréquence cardiaque moyenne', band: [0, hrCap], bandFit: false })}
+      <p class="legend"><span class="lg-dot"></span>une sortie <span class="lg-band"></span>sous ${hrCap}, zone facile${easyHrCap() ? '' : ' (repère général)'}</p>
     </section>` : ''}
 
+    ${hrBlock(runs)}
     ${records(runs)}
     ${testsBlock(ctx)}
+    ${shoesBlock(ctx.t)}
+    ${painBlock()}
 
     <section class="analyse-block">
       <h2 class="section-title">Dernières sorties</h2>
