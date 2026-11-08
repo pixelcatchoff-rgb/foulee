@@ -5,7 +5,10 @@ import { distanceToRoute } from './routes.js';
 import { clock, distance, duration, esc, paceRange, toISO, dateLong } from './util.js';
 
 const LIVE_KEY = 'foulee.live';
-const MAX_ACC = 35;      // précision GPS minimale acceptée (m)
+const MAX_ACC = 50;      // précision GPS acceptée en temps normal (m)
+const MAX_ACC_LOW = 100; // acceptée aussi après 20 s sans meilleur point (ville, arbres)
+const APPROX = 500;      // au-delà : « Position exacte » est sans doute désactivée
+const LOST_AFTER = 30000; // sans point valable depuis 30 s : signal perdu
 const MAX_SPEED = 8;     // au-delà : saut GPS ignoré (m/s, soit 2:05/km)
 const MIN_STEP = 3;      // mouvement minimal pour compter de la distance (m)
 
@@ -27,6 +30,7 @@ function blank(sessionId = null) {
     movingMs: 0, resumedAt: null, splits: [], voice: true,
     step: 0, stepStartMs: 0, stepStartDist: 0, guideDone: false,
     lastAlert: 0, offSince: null, route: null, offRouteSince: null, lastRouteAlert: 0,
+    lastGoodAt: null, lostMs: 0, hiddenAt: null, lostSaid: false,
   };
 }
 
@@ -173,9 +177,16 @@ function onPosition(pos) {
   const { latitude: lat, longitude: lon, accuracy: acc } = pos.coords;
   const t = pos.timestamp || now();
   lastFix = [lat, lon, t, acc];
-  if (run && run.status === 'running' && acc <= MAX_ACC) {
-    addPoint(lat, lon, t);
-    checkRoute(lat, lon);
+  if (run && run.status === 'running') {
+    // Précision exigée : 50 m, ou 100 m si rien de mieux depuis 20 s
+    const since = now() - (run.lastGoodAt || run.resumedAt || now());
+    const limit = since > 20000 ? MAX_ACC_LOW : MAX_ACC;
+    if (acc <= limit) {
+      run.lastGoodAt = now();
+      if (run.lostSaid) { run.lostSaid = false; say('Signal GPS retrouvé.'); }
+      addPoint(lat, lon, t);
+      checkRoute(lat, lon);
+    }
   }
   paint();
 }
@@ -224,8 +235,19 @@ async function keepAwake() {
     }
   } catch { /* refusé : l'écran peut s'éteindre */ }
 }
+// Écran verrouillé ou appli quittée : le téléphone coupe le GPS des applis web.
+// On note la durée de la coupure ; au retour, la distance reprend en ligne droite depuis le dernier point.
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && run?.status === 'running') keepAwake();
+  if (run?.status !== 'running') return;
+  if (document.visibilityState === 'hidden') { run.hiddenAt = now(); persist(true); return; }
+  if (run.hiddenAt) {
+    const gap = now() - run.hiddenAt;
+    if (gap > 15000) run.lostMs = (run.lostMs || 0) + gap;
+    run.hiddenAt = null;
+  }
+  keepAwake();
+  stopGps(); startGps(); // relance le suivi, parfois figé au retour
+  paint();
 });
 
 /* ---------- Commandes ---------- */
@@ -235,6 +257,7 @@ export function start() {
   run.status = 'running';
   run.startedAt = now();
   run.resumedAt = now();
+  run.lastGoodAt = lastFix && lastFix[3] <= MAX_ACC ? now() : null;
   run.stepStartMs = 0;
   run.stepStartDist = 0;
   if (lastFix && lastFix[3] <= MAX_ACC) run.points.push([lastFix[0], lastFix[1], now()]);
@@ -259,6 +282,7 @@ export function pause() {
 export function resume() {
   run.status = 'running';
   run.resumedAt = now();
+  run.lastGoodAt = now();
   say('Reprise.');
   keepAwake();
   tick();
@@ -285,7 +309,8 @@ export function discard() {
 }
 
 // Enregistre la sortie dans le suivi ; renvoie l'identifiant de la sortie.
-export function saveRun() {
+// `fixedKm` : distance corrigée à la main quand le GPS s'est trompé.
+export function saveRun(fixedKm = null) {
   const start = new Date(run.startedAt);
   const id = `gps-${run.startedAt}`;
   const elapsed = Math.round(((run.endedAt || now()) - run.startedAt) / 1000);
@@ -303,6 +328,11 @@ export function saveRun() {
     distance: Math.round(run.dist), moving: Math.round(run.movingMs / 1000), elapsed,
     splits: run.splits.map((x) => Math.round(x)), track,
   };
+  if (fixedKm && Math.abs(fixedKm * 1000 - run.dist) > 20) {
+    activity.distance = Math.round(fixedKm * 1000);
+    activity.fixed = true;
+    activity.splits = [];
+  }
   store.addActivities([activity], { link: !s });
   if (s) {
     store.save(s.id, {
@@ -372,7 +402,15 @@ export function viewLive(sessionId) {
         <div class="live-controls" data-controls></div>
         <label class="live-voice"><input type="checkbox" data-voice ${r.voice ? 'checked' : ''}> Annonces vocales</label>
         <ol class="live-splits" data-splits></ol>
-        <p class="hint">Garde l’écran allumé et Foulée ouverte : le suivi s’arrête si tu verrouilles le téléphone.</p>
+        <div class="live-help" data-gps-help hidden>
+          <p><b>La distance ne compte pas ?</b></p>
+          <ol>
+            <li>Sur iPhone : Réglages, Confidentialité et sécurité, Service de localisation, Sites web Safari : choisis « Lorsque l’app est active » et active « Position exacte ».</li>
+            <li>Sur Android : Paramètres, Localisation : active la localisation et la « précision de la localisation Google ».</li>
+            <li>Garde Foulée ouverte à l’écran pendant la course : si le téléphone se verrouille, le GPS s’arrête.</li>
+          </ol>
+        </div>
+        <p class="hint">Garde l’écran allumé et Foulée ouverte : le suivi s’arrête si tu verrouilles le téléphone. Avec une montre, mieux vaut enregistrer sur la montre.</p>
       </div>
     </div>`;
 }
@@ -382,7 +420,7 @@ export async function mountLive(root) {
   ui = {
     root, gps: q('[data-gps]'), time: q('[data-time]'), dist: q('[data-dist]'), pace: q('[data-pace]'),
     avg: q('[data-avg]'), step: q('[data-step]'), controls: q('[data-controls]'), splits: q('[data-splits]'),
-    map: null, line: null, me: null, L: null, follow: true,
+    map: null, line: null, me: null, L: null, follow: true, help: q('[data-gps-help]'),
   };
   startGps();
   if (run?.status === 'running') { keepAwake(); tick(); }
@@ -419,11 +457,22 @@ function paint() {
   ui.pace.innerHTML = p && run.status === 'running' ? `${clock(p)}<small>/km</small>` : '–';
   ui.avg.innerHTML = run.dist > 50 ? `${clock(sec / (run.dist / 1000))}<small>/km</small>` : '–';
 
-  if (lastFix) {
+  const lostFor = run.status === 'running' ? now() - (run.lastGoodAt || run.resumedAt || now()) : 0;
+  if (run.status === 'running' && lostFor > LOST_AFTER) {
+    ui.gps.textContent = lastFix && lastFix[3] > APPROX
+      ? 'Position approximative : la distance ne compte pas. Active « Position exacte » (voir plus bas).'
+      : `Pas de signal GPS depuis ${Math.round(lostFor / 1000)} s : la distance ne compte pas. Garde Foulée ouverte et l’écran allumé.`;
+    ui.gps.className = 'live-gps is-bad';
+    if (!run.lostSaid && now() - lostFor > 0) { run.lostSaid = true; say('Signal GPS perdu. Garde l’écran allumé.'); }
+  } else if (lastFix) {
+    const acc = Math.round(lastFix[3]);
     const good = lastFix[3] <= MAX_ACC;
-    ui.gps.textContent = good ? `GPS prêt · précision ${Math.round(lastFix[3])} m` : `GPS imprécis (${Math.round(lastFix[3])} m) : patiente à découvert`;
-    ui.gps.classList.toggle('is-ok', good);
+    ui.gps.textContent = lastFix[3] > APPROX
+      ? `Position approximative (${acc} m) : active « Position exacte », sinon la distance ne comptera pas.`
+      : good ? `GPS prêt · précision ${acc} m` : `GPS imprécis (${acc} m) : patiente quelques secondes à découvert`;
+    ui.gps.className = `live-gps${good ? ' is-ok' : lastFix[3] > APPROX ? ' is-bad' : ''}`;
   }
+  if (ui.help) ui.help.hidden = !(lastFix && lastFix[3] > APPROX) && !(run.status === 'running' && lostFor > LOST_AFTER);
 
   // Étape guidée
   const st = run.status !== 'ready' ? currentStep() : guide()[0];
@@ -449,7 +498,9 @@ function paint() {
     ready: '<button class="btn btn-primary btn-big" data-live-act="start">Démarrer</button>',
     running: '<button class="btn btn-big" data-live-act="pause">Pause</button><button class="btn btn-ghost btn-big" data-live-act="finish">Terminer</button>',
     paused: '<button class="btn btn-primary btn-big" data-live-act="resume">Reprendre</button><button class="btn btn-ghost btn-big" data-live-act="finish">Terminer</button>',
-    done: '<button class="btn btn-primary btn-big" data-live-act="save">Enregistrer la sortie</button><button class="btn btn-ghost btn-big" data-live-act="discard">Supprimer</button>',
+    done: `${doneNote()}
+      <label class="field live-fix"><span>Distance réelle</span><span class="unit-input"><input data-live-dist inputmode="decimal" autocomplete="off" value="${(run.dist / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 2 })}"><em>km</em></span></label>
+      <button class="btn btn-primary btn-big" data-live-act="save">Enregistrer la sortie</button><button class="btn btn-ghost btn-big" data-live-act="discard">Supprimer</button>`,
   }[run.status];
   if (ui.controls.dataset.state !== run.status) {
     ui.controls.innerHTML = btns;
@@ -467,6 +518,18 @@ function paint() {
       if (ui.follow) ui.map.setView([pos[0], pos[1]], Math.max(ui.map.getZoom(), 16), { animate: false });
     }
   }
+}
+
+// Après la course : on prévient si le GPS a manqué une partie du parcours
+function doneNote() {
+  const min = Math.round((run.lostMs || 0) / 60000);
+  const sec = run.movingMs / 1000;
+  const pace = run.dist > 50 ? sec / (run.dist / 1000) : null;
+  const odd = run.dist < 200 && sec > 300;
+  if (odd) return '<p class="live-warn">Le GPS n’a presque rien enregistré. Si tu connais la distance (montre, appli d’un ami, parcours connu), corrige-la ci-dessous.</p>';
+  if (min >= 1) return `<p class="live-warn">Le suivi a été coupé environ ${min} min (écran verrouillé ou appli quittée) : la distance est sans doute trop courte. Corrige-la si tu la connais.</p>`;
+  if (pace && pace > 900) return '<p class="live-warn">Allure moyenne très lente : le GPS a peut-être manqué une partie du parcours. Corrige la distance si besoin.</p>';
+  return '<p class="hint">Corrige la distance si elle te paraît fausse.</p>';
 }
 
 export function setVoice(on) {
@@ -495,6 +558,14 @@ export function viewActivity(id) {
       <div><dt>Temps</dt><dd>${clock(a.moving || a.elapsed)}</dd></div>
       <div><dt>Allure</dt><dd>${clock(pace)}<small>/km</small></dd></div>
     </dl>
+    ${a.source === 'gps' ? `
+      <details class="howto">
+        <summary>${a.fixed ? 'Distance corrigée à la main' : 'Corriger la distance'}</summary>
+        <form data-fix-dist="${esc(a.id)}">
+          <label class="field"><span>Distance réelle</span><span class="unit-input"><input name="km" inputmode="decimal" autocomplete="off" value="${(a.distance / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 2 })}"><em>km</em></span></label>
+          <div class="form-actions"><button class="btn btn-primary" type="submit">Enregistrer</button></div>
+        </form>
+      </details>` : ''}
     ${a.hrAvg ? `<p class="hint">Fréquence cardiaque moyenne ${Math.round(a.hrAvg)}${a.hrMax ? `, max ${Math.round(a.hrMax)}` : ''}.</p>` : ''}
     ${a.splits?.length ? `
       <h2 class="section-title">Temps au kilomètre</h2>

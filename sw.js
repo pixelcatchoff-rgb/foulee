@@ -1,5 +1,5 @@
 // Fonctionne hors connexion : les fichiers de l'appli sont gardés en cache.
-const VERSION = 'foulee-3.1.3';
+const VERSION = 'foulee-3.1.4';
 const TILES = 'foulee-tiles';
 const MAX_TILES = 1500;
 const SHELL = [

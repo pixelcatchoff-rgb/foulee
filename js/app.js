@@ -755,7 +755,10 @@ document.addEventListener('click', (ev) => {
     else if (act === 'pause') livePause();
     else if (act === 'resume') liveResume();
     else if (act === 'finish') { if (confirm('Terminer la course ?')) liveFinish(); }
-    else if (act === 'save') { const id = saveRun(); toast('Sortie enregistrée'); location.hash = `#/sortie/${encodeURIComponent(id)}`; }
+    else if (act === 'save') {
+      const v = parseFloat(String(document.querySelector('[data-live-dist]')?.value || '').replace(',', '.'));
+      const id = saveRun(Number.isFinite(v) && v > 0 && v < 100 ? v : null);
+      toast('Sortie enregistrée'); location.hash = `#/sortie/${encodeURIComponent(id)}`; }
     else if (act === 'discard') { if (confirm('Supprimer cette course sans l’enregistrer ?')) { liveDiscard(); location.hash = '#/'; } }
     return;
   }
@@ -876,6 +879,24 @@ document.addEventListener('submit', (ev) => {
     addShoe({ name: String(fd.get('name') || '').trim(), since: fd.get('since') || today(), base: parseInt(fd.get('base'), 10) || 0 });
     toast('Paire ajoutée');
     rerenderKeep();
+    return;
+  }
+  const fix = ev.target.closest('[data-fix-dist]');
+  if (fix) {
+    ev.preventDefault();
+    const km = parseFloat(String(new FormData(fix).get('km') || '').replace(',', '.'));
+    if (!(km > 0 && km < 100)) { toast('Indique une distance en km, par exemple 5,2'); return; }
+    const id = fix.dataset.fixDist;
+    const a = store.activities.find((x) => x.id === id);
+    if (a) {
+      store.addActivities([{ ...a, distance: Math.round(km * 1000), fixed: true, splits: [] }], { link: false });
+      // La séance rattachée prend la nouvelle distance
+      for (const sess of allSessions()) {
+        const e = store.entry(sess.id);
+        if (e?.activityId === id) store.save(sess.id, { distance: Math.round(km * 100) / 100 });
+      }
+      toast('Distance corrigée');
+    }
     return;
   }
   const setup = ev.target.closest('[data-strava-setup]');
