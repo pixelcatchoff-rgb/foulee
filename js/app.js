@@ -23,6 +23,7 @@ import {
   resume as liveResume, finish as liveFinish, discard as liveDiscard, saveRun, setVoice,
 } from './live.js';
 import { readStravaCSV } from './strava-csv.js';
+import { placementField, extrasList, extraNotice, weekExtras } from './extra.js';
 import {
   calendarAll, calendarOne, shareSession, shareActivity, viewDefis, importChallenge, removeFriend, shareChallenge,
   weatherBlock, enableWeather, loadWeather, weatherReady, shoesBlock, addShoe, shoeAction, shoeNotice, painFields, readPain,
@@ -198,6 +199,8 @@ function viewToday() {
     ${top}
     ${estimateCard(ctx)}
     ${hero}
+    <a class="add-run" href="#/ajouter-sortie">+ Ajouter une sortie hors programme</a>
+    ${extraNotice(ctx)}
     ${weatherBlock(s, ctx.t)}
     ${firstSteps()}
     ${painNotice(ctx.t)}
@@ -264,6 +267,7 @@ function viewPlan() {
         ${plan.weeks.filter((w) => w.n >= p.from && w.n <= p.to).map((w) => {
           const sess = ctx.sessions.filter((s) => s.week === w.n);
           const doneN = sess.filter(ctx.done).length;
+          const extraN = weekExtras(w.n).length;
           const isCurrent = w.n === ctx.weekNow;
           const first = sess[0].date;
           const tag = weekLabel(w, plan);
@@ -272,9 +276,10 @@ function viewPlan() {
             <summary>
               <span class="week-n">Sem ${w.n}</span>
               <span class="week-dates">${tag ? `<b class="week-tag">${tag}</b>` : ''}${rangeLabel(first, addDays(ctx.plan.start, (w.n - 1) * 7 + 6))}${w.minutes ? ` · ${w.minutes >= 60 ? `${Math.floor(w.minutes / 60)} h ${String(w.minutes % 60).padStart(2, '0')}` : `${w.minutes} min`}` : ''}</span>
-              <span class="week-count">${doneN}/${sess.length}</span>
+              <span class="week-count">${doneN}/${sess.length}${extraN ? `<small> +${extraN}</small>` : ''}</span>
             </summary>
             <ul class="scards">${sess.map((s) => sessionCard(s, ctx, { featured: s === ctx.next })).join('')}</ul>
+            ${extrasList(w.n)}
           </details>`;
         }).join('')}
       </section>`).join('')}
@@ -316,6 +321,44 @@ function readTime(fd, name) {
   const s = parseInt(fd.get(`${name}_s`), 10);
   if (!Number.isFinite(m) && !Number.isFinite(s)) return null;
   return (Number.isFinite(m) ? m : 0) * 60 + Math.min(59, Number.isFinite(s) ? s : 0);
+}
+
+/* ---------- Écran : Ajouter une sortie ---------- */
+
+function viewAddRun(date) {
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(date || '') ? date : today();
+  const now = new Date();
+  const hh = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  return `
+    <a class="back" href="#/" data-back>Retour</a>
+    <h1 class="page-title">Ajouter une sortie</h1>
+    <p class="lede">Une sortie faite en dehors du programme, ou enregistrée sans Foulée : elle apparaît dans tes courses et le coach en tient compte.</p>
+    <form class="log" data-add-run>
+      <div class="field-row">
+        <label class="field"><span>Date</span><input type="date" name="date" value="${d}" max="${today()}" data-add-date required></label>
+        <label class="field"><span>Heure</span><input type="time" name="time" value="${d === today() ? hh : '12:00'}"></label>
+      </div>
+      <div class="field-row">
+        <label class="field"><span>Distance</span>
+          <span class="unit-input"><input name="distance" inputmode="decimal" autocomplete="off" placeholder="5" required><em>km</em></span>
+        </label>
+        ${timeField('duration', 'Durée', null)}
+      </div>
+      <label class="field"><span>Nom</span><input name="name" autocomplete="off" placeholder="Sortie du midi"></label>
+      <label class="field"><span>Fréquence cardiaque moyenne (facultatif)</span>
+        <span class="unit-input"><input name="hr" inputmode="numeric" pattern="[0-9]*" maxlength="3" autocomplete="off"><em>bpm</em></span>
+      </label>
+      <fieldset class="rpe">
+        <legend>Ressenti, de 1 (très facile) à 10 (à fond)</legend>
+        <div class="rpe-scale">
+          ${Array.from({ length: 10 }, (_, i) => i + 1).map((n) => `<label><input type="radio" name="rpe" value="${n}"><span>${n}</span></label>`).join('')}
+        </div>
+      </fieldset>
+      <div data-place-wrap>${placementField(d)}</div>
+      <label class="field"><span>Note</span><textarea name="note" rows="2" placeholder="Sensations, parcours…"></textarea></label>
+      <div class="form-actions"><button class="btn btn-primary" type="submit">Enregistrer la sortie</button></div>
+      <p class="hint">Si la même sortie arrive ensuite de Strava, elle remplace celle-ci sans être comptée deux fois.</p>
+    </form>`;
 }
 
 function viewSession(id) {
@@ -540,7 +583,7 @@ function viewSettings() {
       <p>Efface ton programme, tes séances cochées et tes sorties importées. L’appli revient à zéro.</p>
       <button class="btn btn-ghost" data-reset>Effacer mes données</button>
     </section>
-    <p class="hint">Foulée, version 3.1</p>
+    <p class="hint">Foulée, version 3.2</p>
   `;
 }
 
@@ -582,6 +625,7 @@ const routes = [
   [/^#\/defi\/([\w-]+)$/, (code) => { const r = importChallenge(code); setTimeout(() => { toast(r.message); location.replace('#/defis'); }, 0); return '<p class="lede">Ajout du défi…</p>'; }, 'run'],
   [/^#\/courir(?:\/([\w-]+))?$/, (sid) => viewLive(sid), 'run'],
   [/^#\/parcours(?:\/([\w-]+))?$/, (sid) => viewParcours(sid), 'run'],
+  [/^#\/ajouter-sortie(?:\/([\d-]+))?$/, (d) => viewAddRun(d), 'analyse'],
   [/^#\/sortie\/(.+)$/, (id) => viewActivity(decodeURIComponent(id)), 'analyse'],
   [/^#\/reglages$/, viewSettings, 'settings'],
 ];
@@ -757,7 +801,8 @@ document.addEventListener('click', (ev) => {
     else if (act === 'finish') { if (confirm('Terminer la course ?')) liveFinish(); }
     else if (act === 'save') {
       const v = parseFloat(String(document.querySelector('[data-live-dist]')?.value || '').replace(',', '.'));
-      const id = saveRun(Number.isFinite(v) && v > 0 && v < 100 ? v : null);
+      const place = document.querySelector('[data-live-place] input[name=place]:checked');
+      const id = saveRun(Number.isFinite(v) && v > 0 && v < 100 ? v : null, place ? place.value || null : undefined);
       toast('Sortie enregistrée'); location.hash = `#/sortie/${encodeURIComponent(id)}`; }
     else if (act === 'discard') { if (confirm('Supprimer cette course sans l’enregistrer ?')) { liveDiscard(); location.hash = '#/'; } }
     return;
@@ -872,12 +917,56 @@ document.addEventListener('input', (ev) => {
 });
 
 document.addEventListener('submit', (ev) => {
+  const addRun = ev.target.closest('[data-add-run]');
+  if (addRun) {
+    ev.preventDefault();
+    const fd = new FormData(addRun);
+    const date = String(fd.get('date') || '');
+    const km = parseFloat(String(fd.get('distance') || '').replace(',', '.'));
+    const sec = readTime(fd, 'duration');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { toast('Indique la date de la sortie'); return; }
+    if (date > today()) { toast('Cette date n’est pas encore passée'); return; }
+    if (!(km > 0 && km < 100)) { toast('Indique une distance en km, par exemple 5,2'); return; }
+    if (!(sec > 0)) { toast('Indique la durée de la sortie'); return; }
+    const pace = sec / km;
+    if (pace < 150 || pace > 1200) { toast(`Allure de ${clock(pace)}/km : vérifie la distance et la durée`); return; }
+    const time = /^\d{2}:\d{2}$/.test(fd.get('time') || '') ? fd.get('time') : '12:00';
+    const hr = parseInt(fd.get('hr'), 10);
+    const place = String(fd.get('place') || '') || null;
+    const id = store.addManualRun({
+      name: String(fd.get('name') || '').trim() || 'Sortie hors programme',
+      date, start: new Date(`${date}T${time}:00`).toISOString(),
+      distance: Math.round(km * 1000), moving: sec, elapsed: sec,
+      hrAvg: hr >= 60 && hr <= 230 ? hr : null,
+      rpe: fd.get('rpe') ? Number(fd.get('rpe')) : null,
+      note: String(fd.get('note') || '').trim(),
+      extra: !place,
+    });
+    store.setPlacement(id, place);
+    if (place) markJustDone(place);
+    navigator.vibrate?.(15);
+    toast(place ? 'Sortie ajoutée et séance cochée' : 'Sortie ajoutée en plus du programme');
+    location.hash = '#/';
+    return;
+  }
   const shoeForm = ev.target.closest('[data-shoe-form]');
   if (shoeForm) {
     ev.preventDefault();
     const fd = new FormData(shoeForm);
     addShoe({ name: String(fd.get('name') || '').trim(), since: fd.get('since') || today(), base: parseInt(fd.get('base'), 10) || 0 });
     toast('Paire ajoutée');
+    rerenderKeep();
+    return;
+  }
+  if (ev.target.matches('[data-add-date]')) {
+    const wrap = $view.querySelector('[data-place-wrap]');
+    if (wrap && ev.target.value) wrap.innerHTML = placementField(ev.target.value);
+    return;
+  }
+  const placing = ev.target.closest('[data-placement]');
+  if (placing && ev.target.name === 'place') {
+    store.setPlacement(placing.dataset.placement, ev.target.value || null);
+    toast(ev.target.value ? `Rattachée à : ${findSession(ev.target.value)?.title || 'la séance'}` : 'Comptée en plus du programme');
     rerenderKeep();
     return;
   }

@@ -147,7 +147,7 @@ export function viewAnalyse(ctx, strava) {
   const importBlock = `
     <section class="analyse-block import">
       <h2 class="section-title">Ajouter des sorties</h2>
-      <div class="form-actions"><a class="btn btn-primary" href="#/courir">Courir avec Foulée</a><a class="btn" href="#/parcours">Trouver un parcours</a></div>
+      <div class="form-actions"><a class="btn btn-primary" href="#/courir">Courir avec Foulée</a><a class="btn" href="#/ajouter-sortie">Saisir une sortie</a><a class="btn" href="#/parcours">Trouver un parcours</a></div>
       ${strava}
       <div class="form-actions">
         <label class="btn">Importer activities.csv<input type="file" accept=".csv,text/csv" data-import-csv hidden></label>
@@ -238,7 +238,7 @@ export function viewAnalyse(ctx, strava) {
       <ul class="runs">
         ${runs.slice(-12).reverse().map((r) => `
           <li><a href="${r.source === 'log' ? `#/seance/${r.id.slice(4)}` : `#/sortie/${encodeURIComponent(r.id)}`}">
-            <span class="run-date">${dateShort(r.date)}${{ log: ' · saisie', gps: ' · Foulée' }[r.source] || ''}</span>
+            <span class="run-date">${dateShort(r.date)}${{ log: ' · saisie', gps: ' · Foulée', manual: ' · saisie' }[r.source] || ''}${r.extra ? ' · <b class="extra-tag">En plus</b>' : ''}</span>
             <span class="run-name">${esc(r.name)}</span>
             <span class="run-figs">${(r.distance / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} km · ${clock(r.moving || r.elapsed)} · ${clock(pace(r))}/km${r.hrAvg ? ` · FC ${Math.round(r.hrAvg)}` : ''}</span>
           </a></li>`).join('')}

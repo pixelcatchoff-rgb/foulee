@@ -1080,3 +1080,43 @@ a.cal-day { background: var(--surface-2); }
 .live-fix { margin-bottom: 10px; }
 .live-controls[data-state="done"] { grid-auto-flow: row; }
 .live-controls .hint { margin: 0; }
+
+/* ---------- Sorties hors programme ---------- */
+.add-run {
+  display: block; margin: 0 0 14px; padding: 11px 14px; text-align: center; text-decoration: none;
+  border: 1.5px dashed var(--line); border-radius: var(--radius-s); color: var(--ink-soft); font-weight: 600; font-size: 15px;
+}
+.add-run:active { border-color: var(--long); color: var(--ink); }
+.place { border: 0; padding: 0; margin: 4px 0 14px; display: grid; gap: 8px; }
+.place legend { font-size: 14px; color: var(--ink-soft); margin-bottom: 6px; }
+.place-opt { position: relative; display: block; cursor: pointer; }
+.place-opt input { position: absolute; opacity: 0; pointer-events: none; }
+.place-opt span {
+  display: grid; gap: 3px; padding: 11px 14px 11px 40px; border: 1.5px solid var(--line); border-radius: var(--radius-s);
+  background: var(--surface); position: relative;
+}
+.place-opt span::before {
+  content: ''; position: absolute; left: 14px; top: 14px; width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid var(--ink-soft);
+}
+.place-opt input:checked + span { border-color: var(--long); }
+.place-opt input:checked + span::before { border-color: var(--long); background: var(--long); box-shadow: inset 0 0 0 2px var(--surface); }
+.place-opt input:focus-visible + span { outline: 3px solid var(--focus); outline-offset: 2px; }
+.place-opt b { font-weight: 600; font-size: 15px; }
+.place-opt small { font-size: 13px; color: var(--ink-soft); }
+.placement { margin-top: 18px; }
+[data-live-place] .place { text-align: left; }
+.extra-tag {
+  display: inline-block; font: 700 10px/1 var(--font-cond); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--long); border: 1px solid var(--long); border-radius: 999px; padding: 3px 7px; vertical-align: 1px;
+}
+.extras { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.extras a {
+  display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; align-items: center; text-decoration: none;
+  padding: 11px 14px; border: 1.5px dashed var(--long); border-radius: var(--radius-s); color: var(--ink);
+}
+.extra-name { font-weight: 600; font-size: 15px; }
+.extra-figs { grid-column: 2; font: 500 13px/1.3 var(--font-cond); color: var(--ink-soft); }
+.week-count small { font-size: 12px; color: var(--long); }
+.coach-extra { border-color: var(--long); }
+.coach-extra .coach-kicker { color: var(--long); }

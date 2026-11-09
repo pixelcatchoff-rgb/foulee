@@ -1,4 +1,5 @@
 // Éléments d'interface partagés : cartes de séance, estimation du chrono, série, bilan, semaines.
+import { weekExtras } from './extra.js';
 import { store, allSessions } from './store.js';
 import { totalTime } from './steps.js';
 import { sessionDistance } from './routes.js';
@@ -160,8 +161,9 @@ export function weekReview(ctx) {
   if (w < 1 || w > ctx.plan.weeks.length) return '';
   const sess = ctx.sessions.filter((s) => s.week === w);
   const done = sess.filter(ctx.done);
-  const km = done.reduce((s, x) => s + (store.entry(x.id)?.distance || 0), 0);
-  const min = done.reduce((s, x) => s + (store.entry(x.id)?.duration || 0), 0) / 60;
+  const extras = weekExtras(w);
+  const km = done.reduce((s, x) => s + (store.entry(x.id)?.distance || 0), 0) + extras.reduce((s, a) => s + a.distance / 1000, 0);
+  const min = (done.reduce((s, x) => s + (store.entry(x.id)?.duration || 0), 0) + extras.reduce((s, a) => s + (a.moving || a.elapsed || 0), 0)) / 60;
   const all = done.length === sess.length;
   const msg = all ? 'Semaine complète. C’est la régularité qui fait progresser.'
     : done.length ? 'Pas grave : reprends simplement le programme cette semaine, sans rattraper.'
@@ -170,11 +172,11 @@ export function weekReview(ctx) {
     <section class="review">
       <h2 class="review-title">Bilan semaine ${w}</h2>
       <dl class="srow">
-        <div><dt>Séances</dt><dd>${done.length}/${sess.length}</dd></div>
+        <div><dt>Séances</dt><dd>${done.length}/${sess.length}${extras.length ? ` +${extras.length}` : ''}</dd></div>
         <div><dt>Distance</dt><dd>${km ? `${km.toLocaleString('fr-FR', { maximumFractionDigits: 1 })}KM` : '–'}</dd></div>
         <div><dt>Temps</dt><dd>${min ? (min >= 60 ? `${Math.floor(min / 60)}H${String(Math.round(min % 60)).padStart(2, '0')}` : `${Math.round(min)}MIN`) : '–'}</dd></div>
       </dl>
-      <p>${msg}</p>
+      <p>${msg}${extras.length ? ` Distance et temps comptent ${extras.length > 1 ? `tes ${extras.length} sorties` : 'ta sortie'} en plus du programme.` : ''}</p>
     </section>`;
 }
 

@@ -2,6 +2,7 @@
 import { store, findSession } from './store.js';
 import { createMap, trackLayer, meMarker, haversine } from './map.js';
 import { distanceToRoute } from './routes.js';
+import { placementField } from './extra.js';
 import { clock, distance, duration, esc, paceRange, toISO, dateLong } from './util.js';
 
 const LIVE_KEY = 'foulee.live';
@@ -310,7 +311,8 @@ export function discard() {
 
 // Enregistre la sortie dans le suivi ; renvoie l'identifiant de la sortie.
 // `fixedKm` : distance corrigée à la main quand le GPS s'est trompé.
-export function saveRun(fixedKm = null) {
+// `place` : séance remplacée (id), null = en plus du programme, undefined = rattachement automatique.
+export function saveRun(fixedKm = null, place = undefined) {
   const start = new Date(run.startedAt);
   const id = `gps-${run.startedAt}`;
   const elapsed = Math.round(((run.endedAt || now()) - run.startedAt) / 1000);
@@ -333,7 +335,8 @@ export function saveRun(fixedKm = null) {
     activity.fixed = true;
     activity.splits = [];
   }
-  store.addActivities([activity], { link: !s });
+  store.addActivities([activity], { link: !s && place === undefined });
+  if (!s && place !== undefined) store.setPlacement(id, place);
   if (s) {
     store.save(s.id, {
       date: activity.date, duration: activity.moving,
@@ -499,6 +502,7 @@ function paint() {
     running: '<button class="btn btn-big" data-live-act="pause">Pause</button><button class="btn btn-ghost btn-big" data-live-act="finish">Terminer</button>',
     paused: '<button class="btn btn-primary btn-big" data-live-act="resume">Reprendre</button><button class="btn btn-ghost btn-big" data-live-act="finish">Terminer</button>',
     done: `${doneNote()}
+      ${run.sessionId ? '' : `<div data-live-place>${placementField(toISO(new Date(run.startedAt)))}</div>`}
       <label class="field live-fix"><span>Distance réelle</span><span class="unit-input"><input data-live-dist inputmode="decimal" autocomplete="off" value="${(run.dist / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 2 })}"><em>km</em></span></label>
       <button class="btn btn-primary btn-big" data-live-act="save">Enregistrer la sortie</button><button class="btn btn-ghost btn-big" data-live-act="discard">Supprimer</button>`,
   }[run.status];
@@ -550,7 +554,7 @@ export function viewActivity(id) {
     <header class="session-head t-long">
       <p class="hero-when">${dateLong(a.date)}</p>
       <h1 class="hero-title">${esc(a.name)}</h1>
-      <p class="hero-meta">${{ gps: 'Enregistrée avec Foulée', archive: 'Archive Strava', api: 'Strava' }[a.source] || ''}</p>
+      <p class="hero-meta">${{ gps: 'Enregistrée avec Foulée', archive: 'Archive Strava', api: 'Strava', manual: 'Saisie à la main' }[a.source] || ''}${a.extra ? ' · en plus du programme' : ''}</p>
     </header>
     ${a.track?.length > 1 ? '<div class="activity-map" data-activity-map></div>' : ''}
     <dl class="stats">
@@ -566,6 +570,8 @@ export function viewActivity(id) {
           <div class="form-actions"><button class="btn btn-primary" type="submit">Enregistrer</button></div>
         </form>
       </details>` : ''}
+    ${a.rpe || a.note ? `<p class="note">${a.rpe ? `Ressenti ${a.rpe}/10. ` : ''}${esc(a.note || '')}</p>` : ''}
+    ${store.plan ? `<form class="placement" data-placement="${esc(a.id)}">${placementField(a.date, a.id)}</form>` : ''}
     ${a.hrAvg ? `<p class="hint">Fréquence cardiaque moyenne ${Math.round(a.hrAvg)}${a.hrMax ? `, max ${Math.round(a.hrMax)}` : ''}.</p>` : ''}
     ${a.splits?.length ? `
       <h2 class="section-title">Temps au kilomètre</h2>

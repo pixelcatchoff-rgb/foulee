@@ -70,11 +70,56 @@ export const store = {
       if (!prev) added += 1;
       // Une sortie déjà importée depuis l'archive reste à toi : elle n'est pas remplacée par la copie de l'API.
       if (prev?.source === 'archive' && a.source === 'api') continue;
-      state.activities[a.id] = { ...(prev || {}), ...a };
+      let next = { ...(prev || {}), ...a };
+      if (!prev) next = absorbTwin(next);
+      state.activities[a.id] = next;
     }
     const linked = link ? linkActivities() : 0;
     persist();
     return { added, linked };
+  },
+
+  // Sortie saisie à la main (montre, tapis, sortie sans téléphone…)
+  addManualRun(run) {
+    const id = `manual-${Date.now()}`;
+    state.activities[id] = { ...run, id, source: 'manual', created: Date.now() };
+    persist();
+    return id;
+  },
+
+  // Place d'une sortie dans le programme : rattachée à une séance (sessionId), ou en plus du programme (null).
+  setPlacement(activityId, sessionId) {
+    const a = state.activities[activityId];
+    if (!a) return;
+    for (const [sid, e] of Object.entries(state.log)) {
+      if (e.activityId !== activityId || sid === sessionId) continue;
+      // La séance redevient à faire, sauf si tu y avais noté quelque chose toi-même
+      if (e.time3k || e.rpe || e.note || e.pain) delete e.activityId;
+      else delete state.log[sid];
+    }
+    a.extra = !sessionId;
+    delete a.twin;
+    if (sessionId) {
+      const prev = state.log[sessionId] || {};
+      state.log[sessionId] = {
+        ...prev,
+        done: true,
+        activityId,
+        date: a.date,
+        duration: a.moving || a.elapsed,
+        distance: Math.round(a.distance / 10) / 100,
+        hrAvg: a.hrAvg || prev.hrAvg || null,
+        rpe: prev.rpe || a.rpe || null,
+        updated: Date.now(),
+      };
+    }
+    persist();
+  },
+
+  updateActivity(id, patch) {
+    if (!state.activities[id]) return;
+    state.activities[id] = { ...state.activities[id], ...patch };
+    persist();
   },
 
   deleteActivity(id) {
@@ -168,6 +213,29 @@ export const store = {
   reset() { state = { ...fresh(), strava: state.strava }; persist(); },
 };
 
+// Même sortie arrivée deux fois (saisie à la main puis Strava, ou Foulée puis Strava) :
+// même jour, distance proche, et départ proche quand les deux heures sont connues.
+function isTwin(a, b) {
+  if (a.id === b.id || a.date !== b.date || !a.distance || !b.distance) return false;
+  if (Math.abs(a.distance - b.distance) > 0.2 * Math.max(a.distance, b.distance)) return false;
+  if (a.source === 'manual' || b.source === 'manual') return true;
+  return Math.abs(new Date(a.start) - new Date(b.start)) < 30 * 60000;
+}
+
+// Une nouvelle sortie qui double une sortie connue en reprend la place dans le programme.
+// Une saisie à la main est remplacée par la copie plus précise (Strava, Foulée).
+function absorbTwin(a) {
+  if (a.source === 'manual') return a;
+  const twin = Object.values(state.activities).find((b) => isTwin(a, b));
+  if (!twin) return a;
+  if (twin.source === 'manual') {
+    delete state.activities[twin.id];
+    for (const e of Object.values(state.log)) if (e.activityId === twin.id) e.activityId = a.id;
+    return { ...a, extra: !!twin.extra, rpe: twin.rpe || a.rpe, note: twin.note || a.note, hrAvg: a.hrAvg || twin.hrAvg };
+  }
+  return { ...a, extra: !!twin.extra, twin: twin.id };
+}
+
 function purgeApiCache() {
   const limit = Date.now() - API_CACHE_DAYS * 86400000;
   for (const [id, a] of Object.entries(state.activities)) {
@@ -182,7 +250,7 @@ function linkActivities() {
   if (!plan) return 0;
   const used = new Set(Object.values(state.log).map((e) => e.activityId).filter(Boolean));
   const runs = Object.values(state.activities)
-    .filter((a) => !used.has(a.id))
+    .filter((a) => !used.has(a.id) && !a.extra && !a.twin)
     .sort((a, b) => (a.start < b.start ? -1 : 1));
   let linked = 0;
   for (const w of plan.weeks) {
@@ -237,9 +305,14 @@ export function phaseOf(plan, weekN) {
 export function allRuns() {
   let runs = store.activities.map((a) => ({ ...a }));
   // Une sortie enregistrée avec Foulée et aussi avec la montre (Strava) n'est comptée qu'une fois
-  const others = runs.filter((r) => r.source !== 'gps');
+  const others = runs.filter((r) => r.source !== 'gps' && r.source !== 'manual');
   runs = runs.filter((r) => r.source !== 'gps' || !others.some((o) => Math.abs(new Date(o.start) - new Date(r.start)) < 15 * 60000));
-  const linked = new Set(runs.map((r) => r.id));
+  // Doublons repérés à l'import : on garde la copie Strava plutôt que celle du GPS du téléphone
+  const byId = Object.fromEntries(runs.map((r) => [r.id, r]));
+  const twinned = new Set(runs.filter((r) => r.twin && byId[r.twin]).map((r) => r.twin));
+  runs = runs.filter((r) => (r.twin && byId[r.twin] ? byId[r.twin].source === 'gps' : !(twinned.has(r.id) && r.source === 'gps')));
+  // Une séance rattachée à une sortie (même écartée comme doublon) n'est pas comptée une seconde fois
+  const linked = new Set(Object.keys(state.activities));
   for (const s of allSessions()) {
     const e = state.log[s.id];
     if (!e?.done || e.activityId && linked.has(e.activityId)) continue;
