@@ -741,6 +741,31 @@ export function weekRing(ctx) {
 }
 
 /* =========================================================
+   La semaine en un coup d'œil (Aujourd'hui)
+   ========================================================= */
+
+const DAY1 = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+
+export function weekDays(ctx) {
+  if (ctx.finished) return '';
+  const w = Math.max(1, Math.min(ctx.plan.weeks.length, ctx.weekNow || 1));
+  const from = addDays(ctx.plan.start, (w - 1) * 7);
+  const cells = [];
+  for (let i = 0; i < 7; i += 1) {
+    const d = addDays(from, i);
+    const s = ctx.sessions.find((x) => x.date === d);
+    const done = s && ctx.done(s);
+    const late = s && !done && d < ctx.t;
+    const inner = `<small>${DAY1[parseISO(d).getDay()]}</small><b>${parseISO(d).getDate()}</b><span class="wd-dot${s ? ` t-${s.type}` : ''}${done ? ' is-done' : ''}${late ? ' is-late' : ''}">${done ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12.5l4 4 8-9"/></svg>' : ''}</span>`;
+    const cls = `wd${d === ctx.t ? ' is-today' : ''}${s ? ' has-s' : ''}`;
+    cells.push(s
+      ? `<a class="${cls}" href="#/seance/${s.id}" aria-label="${esc(`${dateLong(d)} : ${s.title}${done ? ', faite' : ''}`)}">${inner}</a>`
+      : `<span class="${cls}" aria-label="${esc(`${dateLong(d)} : repos`)}">${inner}</span>`);
+  }
+  return `<nav class="wdays" aria-label="Ta semaine">${cells.join('')}</nav>`;
+}
+
+/* =========================================================
    Vue du mois
    ========================================================= */
 

@@ -56,20 +56,23 @@ export function sessionStats(s, plan = store.plan) {
   const km = sessionDistance(s, plan) / 1000;
   const pace = mainPace(s.steps);
   return {
-    dur: min >= 60 ? `${Math.floor(min / 60)}H${String(min % 60).padStart(2, '0')}` : `${min}MIN`,
-    dist: km ? `${km.toLocaleString('fr-FR', { maximumFractionDigits: 1 })}KM` : '–',
+    dur: min >= 60 ? `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}` : `${min} min`,
+    dist: km ? `${km.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} km` : '–',
     pace: pace ? clock(pace[0]) : '–',
   };
 }
 
+// Chiffre en grand, unité en petit : « 3,5 km » se lit mieux que « 3,5KM »
+export const fig = (v) => esc(v).replace(/\s?(km|min|h)(?=\s|$)/g, '<small>$1</small>');
+
 export function statsRow(s, done) {
   const st = sessionStats(s);
   const e = done ? store.entry(s.id) : null;
-  const km = (x) => `${Number(x).toLocaleString('fr-FR', { maximumFractionDigits: 2 })}KM`;
+  const km = (x) => `${Number(x).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} km`;
   const cells = e && (e.duration || e.distance)
     ? [['Durée', e.duration ? clock(e.duration) : '–'], ['Distance', e.distance ? km(e.distance) : '–'], [e.rpe ? `Allure · ${e.rpe}/10` : 'Allure', e.duration && e.distance ? clock(e.duration / e.distance) : '–']]
     : [['Durée', st.dur], ['Distance', st.dist], ['Allure', st.pace]];
-  return `<dl class="srow">${cells.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>`;
+  return `<dl class="srow">${cells.map(([k, v]) => `<div><dt>${k}</dt><dd>${fig(v)}</dd></div>`).join('')}</dl>`;
 }
 
 /* ---------- Carte de séance ---------- */
@@ -173,8 +176,8 @@ export function weekReview(ctx) {
       <h2 class="review-title">Bilan semaine ${w}</h2>
       <dl class="srow">
         <div><dt>Séances</dt><dd>${done.length}/${sess.length}${extras.length ? ` +${extras.length}` : ''}</dd></div>
-        <div><dt>Distance</dt><dd>${km ? `${km.toLocaleString('fr-FR', { maximumFractionDigits: 1 })}KM` : '–'}</dd></div>
-        <div><dt>Temps</dt><dd>${min ? (min >= 60 ? `${Math.floor(min / 60)}H${String(Math.round(min % 60)).padStart(2, '0')}` : `${Math.round(min)}MIN`) : '–'}</dd></div>
+        <div><dt>Distance</dt><dd>${km ? fig(`${km.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} km`) : '–'}</dd></div>
+        <div><dt>Temps</dt><dd>${min ? fig(min >= 60 ? `${Math.floor(min / 60)} h ${String(Math.round(min % 60)).padStart(2, '0')}` : `${Math.round(min)} min`) : '–'}</dd></div>
       </dl>
       <p>${msg}${extras.length ? ` Distance et temps comptent ${extras.length > 1 ? `tes ${extras.length} sorties` : 'ta sortie'} en plus du programme.` : ''}</p>
     </section>`;

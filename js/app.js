@@ -27,7 +27,7 @@ import { placementField, extrasList, extraNotice, weekExtras } from './extra.js'
 import {
   calendarAll, calendarOne, shareSession, shareActivity, viewDefis, importChallenge, removeFriend, shareChallenge,
   weatherBlock, enableWeather, loadWeather, weatherReady, shoesBlock, addShoe, shoeAction, shoeNotice, painFields, readPain,
-  painNotice, shareBackup, backupNotice, firstSteps, weekRing, monthView,
+  painNotice, shareBackup, backupNotice, firstSteps, weekRing, monthView, weekDays,
 } from './extras.js';
 import { viewQuiz, handleQuizClick, handleQuizInput, setQuizToday } from './quiz.js';
 import { vdotFromRace, repace, zones as coachZones, ZONE_INFO } from './coach.js';
@@ -197,17 +197,14 @@ function viewToday() {
   return `
     ${banner}
     ${top}
-    ${estimateCard(ctx)}
+    ${weekDays(ctx)}
     ${hero}
     <a class="add-run" href="#/ajouter-sortie">+ Ajouter une sortie hors programme</a>
     ${extraNotice(ctx)}
     ${weatherBlock(s, ctx.t)}
+    ${[painNotice(ctx.t), missed, hardNotice, shoeNotice(), backupNotice()].filter((x) => x && x.trim()).slice(0, 2).join('')}
+    ${estimateCard(ctx)}
     ${firstSteps()}
-    ${painNotice(ctx.t)}
-    ${missed}
-    ${hardNotice}
-    ${shoeNotice()}
-    ${backupNotice()}
     ${todayTip(s, ctx.t)}
     ${weekReview(ctx)}
     ${upcoming.length ? `
@@ -275,7 +272,8 @@ function viewPlan() {
           <details class="week${isCurrent ? ' is-current' : ''}" ${isCurrent || (!ctx.started && w.n === 1) ? 'open' : ''} id="semaine-${w.n}">
             <summary>
               <span class="week-n">Sem ${w.n}</span>
-              <span class="week-dates">${tag ? `<b class="week-tag">${tag}</b>` : ''}${rangeLabel(first, addDays(ctx.plan.start, (w.n - 1) * 7 + 6))}${w.minutes ? ` · ${w.minutes >= 60 ? `${Math.floor(w.minutes / 60)} h ${String(w.minutes % 60).padStart(2, '0')}` : `${w.minutes} min`}` : ''}</span>
+              <span class="week-dates">${tag ? `<b class="week-tag">${tag}</b>` : ''}${rangeLabel(first, addDays(ctx.plan.start, (w.n - 1) * 7 + 6))}${w.minutes ? ` · <span class="nw">${w.minutes >= 60 ? `${Math.floor(w.minutes / 60)} h ${String(w.minutes % 60).padStart(2, '0')}` : `${w.minutes} min`}</span>` : ''}</span>
+              <span class="week-dots" aria-hidden="true">${sess.map((s) => `<i class="t-${s.type}${ctx.done(s) ? ' is-done' : ''}"></i>`).join('')}</span>
               <span class="week-count">${doneN}/${sess.length}${extraN ? `<small> +${extraN}</small>` : ''}</span>
             </summary>
             <ul class="scards">${sess.map((s) => sessionCard(s, ctx, { featured: s === ctx.next })).join('')}</ul>
@@ -386,7 +384,7 @@ function viewSession(id) {
         <a class="btn" href="#/parcours/${s.id}">Parcours</a>
       </div>
       <div class="mini-actions">
-        ${e.done ? `<button class="linkish" data-share-session="${s.id}">Partager en image</button>` : `<button class="linkish" data-ics-one="${s.id}">Ajouter au calendrier</button>`}
+        ${e.done ? `<button class="linkish" data-share-session="${s.id}">Partager en image</button>` : `<button class="linkish" data-goto-log>Remplir mon compte rendu</button><button class="linkish" data-ics-one="${s.id}">Calendrier</button>`}
       </div>
     </header>
 
@@ -686,9 +684,10 @@ applyTheme();
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', applyTheme);
 
 function handleExtrasClick(ev) {
-  const t = ev.target.closest('[data-ics-all],[data-ics-one],[data-share-session],[data-share-activity],[data-defi-share],[data-defi-remove],[data-wx-enable],[data-wx-adapt],[data-shoe-act],[data-backup-share],[data-onboard-done],[data-cal]');
+  const t = ev.target.closest('[data-ics-all],[data-ics-one],[data-share-session],[data-share-activity],[data-defi-share],[data-defi-remove],[data-wx-enable],[data-wx-adapt],[data-shoe-act],[data-backup-share],[data-onboard-done],[data-cal],[data-goto-log]');
   if (!t) return false;
   ev.preventDefault();
+  if ('gotoLog' in t.dataset) { document.querySelector('[data-log]')?.scrollIntoView({ block: 'start', behavior: 'smooth' }); return true; }
   if ('icsAll' in t.dataset) {
     const n = calendarAll(today());
     if (!n) toast('Aucune séance à venir');

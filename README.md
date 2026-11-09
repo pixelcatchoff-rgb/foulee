@@ -2,6 +2,13 @@
 
 Ton programme de course à pied, séance par séance. Une appli web installable (iPhone et Android), hébergée sur GitHub Pages : https://pixelcatchoff-rgb.github.io/foulee/
 
+## Nouveautés de la version 3.2
+
+- **Aujourd’hui** : la semaine en un coup d’œil (7 jours, séances faites ou à faire), deux avis au maximum, premiers pas en bandeau compact.
+- **Course en direct** : carte plus basse, bouton Démarrer toujours visible, barre d’onglets masquée pendant la course, alerte de signal GPS perdu, distance corrigeable.
+- **Lisibilité** : unités en petit (« 3,5 km »), textes de 12 px minimum, zones tactiles de 44 px.
+- **Programme** : pastilles des séances sur chaque semaine repliée.
+
 ## Nouveautés de la version 3.1
 
 - **Rappels** : toutes les séances à venir dans le calendrier du téléphone (fichier .ics), avec une alerte la veille à 18 h.

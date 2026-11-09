@@ -446,6 +446,7 @@ export async function mountLive(root) {
 }
 
 export function unmountLive() {
+  document.body.classList.remove('run-on');
   if (ui?.map) ui.map.remove();
   ui = null;
   if (!run || run.status === 'ready' || run.status === 'done') stopGps();
@@ -453,6 +454,8 @@ export function unmountLive() {
 
 function paint() {
   if (!ui || !run) return;
+  // Pendant la course, la barre d'onglets disparaît : plus de place, pas de touche accidentelle
+  document.body.classList.toggle('run-on', run.status === 'running');
   const sec = movingMs() / 1000;
   const p = currentPace();
   ui.time.textContent = clock(sec);

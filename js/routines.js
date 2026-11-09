@@ -150,7 +150,7 @@ function paint() {
   }
   p.root.querySelector('[data-rt-list]').innerHTML = p.list.filter((x) => !x.rest).map((x) => {
     const idx = p.list.indexOf(x);
-    return `<li class="${idx < p.i || p.done ? 'is-done' : idx === p.i ? 'is-now' : ''}"><span>${esc(x.name)}</span><span>${x.dur} s</span></li>`;
+    return `<li class="${idx < p.i || p.done ? 'is-done' : idx === p.i ? 'is-now' : ''}"><span>${esc(x.name)}</span><span class="rt-dur">${x.dur} s</span></li>`;
   }).join('');
 }
 
