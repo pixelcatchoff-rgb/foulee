@@ -310,9 +310,9 @@ export function discard() {
 }
 
 // Enregistre la sortie dans le suivi ; renvoie l'identifiant de la sortie.
-// `fixedKm` : distance corrigée à la main quand le GPS s'est trompé.
+// `fixedKm` / `fixedSec` : distance et durée corrigées à la main (GPS trompé, chrono oublié).
 // `place` : séance remplacée (id), null = en plus du programme, undefined = rattachement automatique.
-export function saveRun(fixedKm = null, place = undefined) {
+export function saveRun(fixedKm = null, place = undefined, fixedSec = null) {
   const start = new Date(run.startedAt);
   const id = `gps-${run.startedAt}`;
   const elapsed = Math.round(((run.endedAt || now()) - run.startedAt) / 1000);
@@ -332,6 +332,12 @@ export function saveRun(fixedKm = null, place = undefined) {
   };
   if (fixedKm && Math.abs(fixedKm * 1000 - run.dist) > 20) {
     activity.distance = Math.round(fixedKm * 1000);
+    activity.fixed = true;
+    activity.splits = [];
+  }
+  if (fixedSec && Math.abs(fixedSec - activity.moving) >= 5) {
+    activity.moving = Math.round(fixedSec);
+    activity.elapsed = Math.max(activity.moving, elapsed);
     activity.fixed = true;
     activity.splits = [];
   }
@@ -506,7 +512,10 @@ function paint() {
     paused: '<button class="btn btn-primary btn-big" data-live-act="resume">Reprendre</button><button class="btn btn-ghost btn-big" data-live-act="finish">Terminer</button>',
     done: `${doneNote()}
       ${run.sessionId ? '' : `<div data-live-place>${placementField(toISO(new Date(run.startedAt)))}</div>`}
-      <label class="field live-fix"><span>Distance réelle</span><span class="unit-input"><input data-live-dist inputmode="decimal" autocomplete="off" value="${(run.dist / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 2 })}"><em>km</em></span></label>
+      <div class="live-fix">
+        <div class="field"><span>Durée</span>${durFields('live', Math.round(run.movingMs / 1000))}</div>
+        <label class="field"><span>Distance</span><span class="unit-input"><input data-live-dist inputmode="decimal" autocomplete="off" value="${(run.dist / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 2 })}"><em>km</em></span></label>
+      </div>
       <button class="btn btn-primary btn-big" data-live-act="save">Enregistrer la sortie</button><button class="btn btn-ghost btn-big" data-live-act="discard">Supprimer</button>`,
   }[run.status];
   if (ui.controls.dataset.state !== run.status) {
@@ -565,11 +574,13 @@ export function viewActivity(id) {
       <div><dt>Temps</dt><dd>${clock(a.moving || a.elapsed)}</dd></div>
       <div><dt>Allure</dt><dd>${clock(pace)}<small>/km</small></dd></div>
     </dl>
-    ${a.source === 'gps' ? `
-      <details class="howto">
-        <summary>${a.fixed ? 'Distance corrigée à la main' : 'Corriger la distance'}</summary>
+    ${a.source === 'gps' || a.source === 'manual' ? `
+      <details class="howto edit-run"${a.fixed ? '' : ''}>
+        <summary>Modifier la durée et la distance${a.fixed ? ' · déjà corrigées' : ''}</summary>
         <form data-fix-dist="${esc(a.id)}">
-          <label class="field"><span>Distance réelle</span><span class="unit-input"><input name="km" inputmode="decimal" autocomplete="off" value="${(a.distance / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 2 })}"><em>km</em></span></label>
+          <div class="field"><span>Durée</span>${durFields('fix', a.moving || a.elapsed)}</div>
+          <label class="field"><span>Distance</span><span class="unit-input"><input name="km" inputmode="decimal" autocomplete="off" value="${(a.distance / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 2 })}"><em>km</em></span></label>
+          <p class="hint">L’allure est recalculée. Les temps au kilomètre, qui ne correspondraient plus, sont retirés.</p>
           <div class="form-actions"><button class="btn btn-primary" type="submit">Enregistrer</button></div>
         </form>
       </details>` : ''}
@@ -580,6 +591,20 @@ export function viewActivity(id) {
       <h2 class="section-title">Temps au kilomètre</h2>
       <ol class="split-list">${a.splits.map((s, i) => `<li><span>Km ${i + 1}</span><span>${clock(s)}</span></li>`).join('')}</ol>` : ''}
     <div class="form-actions" style="margin-top:24px"><button class="btn" data-share-activity="${esc(a.id)}">Partager en image</button><button class="btn btn-ghost" data-delete-activity="${esc(a.id)}">Supprimer cette sortie</button></div>`;
+}
+
+// Saisie d'une durée en heures, minutes, secondes (le clavier numérique de l'iPhone n'a pas de « : »)
+function durFields(prefix, sec = 0) {
+  sec = Math.round(sec || 0);
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  const cell = (n, v, unit, max) => `<span class="unit-input"><input name="${prefix}_${n}" data-dur="${prefix}_${n}" inputmode="numeric" pattern="[0-9]*" maxlength="${max}" autocomplete="off" aria-label="Durée, ${unit}" value="${v}"><em>${unit}</em></span>`;
+  return `<div class="time-pair has-hours">${cell('h', h || '', 'h', 2)}${cell('m', sec ? m : '', 'min', 2)}${cell('s', sec ? String(s).padStart(2, '0') : '', 's', 2)}</div>`;
+}
+
+export function readDur(root, prefix) {
+  const g = (n) => parseInt(root.querySelector(`[data-dur="${prefix}_${n}"]`)?.value, 10) || 0;
+  const t = g('h') * 3600 + Math.min(59, g('m')) * 60 + Math.min(59, g('s'));
+  return t || null;
 }
 
 export async function mountActivity(root, id) {

@@ -20,7 +20,7 @@ import {
 import { sessionDistance } from './routes.js';
 import {
   viewLive, mountLive, unmountLive, viewActivity, mountActivity, liveRun, start as liveStart, pause as livePause,
-  resume as liveResume, finish as liveFinish, discard as liveDiscard, saveRun, setVoice,
+  resume as liveResume, finish as liveFinish, discard as liveDiscard, saveRun, setVoice, readDur,
 } from './live.js';
 import { readStravaCSV } from './strava-csv.js';
 import { placementField, extrasList, extraNotice, weekExtras } from './extra.js';
@@ -801,7 +801,8 @@ document.addEventListener('click', (ev) => {
     else if (act === 'save') {
       const v = parseFloat(String(document.querySelector('[data-live-dist]')?.value || '').replace(',', '.'));
       const place = document.querySelector('[data-live-place] input[name=place]:checked');
-      const id = saveRun(Number.isFinite(v) && v > 0 && v < 100 ? v : null, place ? place.value || null : undefined);
+      const sec = readDur(document, 'live');
+      const id = saveRun(Number.isFinite(v) && v > 0 && v < 100 ? v : null, place ? place.value || null : undefined, sec && sec < 86400 ? sec : null);
       toast('Sortie enregistrée'); location.hash = `#/sortie/${encodeURIComponent(id)}`; }
     else if (act === 'discard') { if (confirm('Supprimer cette course sans l’enregistrer ?')) { liveDiscard(); location.hash = '#/'; } }
     return;
@@ -973,17 +974,27 @@ document.addEventListener('submit', (ev) => {
   if (fix) {
     ev.preventDefault();
     const km = parseFloat(String(new FormData(fix).get('km') || '').replace(',', '.'));
+    const sec = readDur(fix, 'fix');
     if (!(km > 0 && km < 100)) { toast('Indique une distance en km, par exemple 5,2'); return; }
+    if (!sec || sec >= 86400) { toast('Indique une durée, par exemple 32 min 15 s'); return; }
+    const pace = sec / km;
+    if (pace < 150 || pace > 1200) { toast(pace < 150 ? 'Allure trop rapide pour être vraie : vérifie la durée et la distance' : 'Allure de plus de 20 min/km : vérifie la durée et la distance'); return; }
     const id = fix.dataset.fixDist;
     const a = store.activities.find((x) => x.id === id);
     if (a) {
-      store.addActivities([{ ...a, distance: Math.round(km * 1000), fixed: true, splits: [] }], { link: false });
-      // La séance rattachée prend la nouvelle distance
+      const sameKm = Math.abs(a.distance - km * 1000) < 5;
+      const sameSec = Math.abs((a.moving || a.elapsed) - sec) < 1;
+      if (sameKm && sameSec) { toast('Rien à changer'); return; }
+      store.addActivities([{
+        ...a, distance: Math.round(km * 1000), moving: sec, elapsed: Math.max(sec, sameSec ? a.elapsed || sec : sec),
+        fixed: true, splits: sameKm && sameSec ? a.splits : [],
+      }], { link: false });
+      // La séance rattachée prend la nouvelle durée et la nouvelle distance
       for (const sess of allSessions()) {
         const e = store.entry(sess.id);
-        if (e?.activityId === id) store.save(sess.id, { distance: Math.round(km * 100) / 100 });
+        if (e?.activityId === id) store.save(sess.id, { distance: Math.round(km * 100) / 100, duration: sec });
       }
-      toast('Distance corrigée');
+      toast('Sortie modifiée');
     }
     return;
   }
