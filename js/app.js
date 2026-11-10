@@ -234,6 +234,7 @@ function pacesCard(plan) {
     <details class="paces">
       <summary><span>Mes allures</span><small>${esc(c.label)}${c.estimated && Math.abs(c.vdot - c.vdot0) < 0.3 ? ' · estimées' : ''}</small></summary>
       <table class="table zones-table"><tbody>${rows.join('')}</tbody></table>
+      ${c.easyShift ? `<p class="shift-note">Allures faciles ralenties de ${c.easyShift} s/km d’après ton cardio. <button class="linkish" data-cardio-shift="${-c.easyShift}">Revenir aux allures d’origine</button></p>` : ''}
       <p class="hint">${c.estimated && Math.abs(c.vdot - c.vdot0) < 0.3 ? 'Allures estimées : ton premier test les ajustera.' : 'Allures calculées d’après ton dernier chrono (méthode VDOT).'} Chaque test saisi recale le reste du programme.</p>
     </details>`;
 }
@@ -703,7 +704,7 @@ function handleCardioClick(ev) {
   if (t.dataset.cardioShift) {
     const sec = Number(t.dataset.cardioShift);
     const r = store.adjustPlan((plan) => shiftEasy(plan, sec, today()));
-    store.saveTools({ cardioSnooze: today() });
+    store.saveTools({ cardioSnooze: today(), cardioShiftAt: sec > 0 ? today() : null });
     toast(sec > 0 ? `Allures faciles ralenties de ${sec} s/km sur ${r?.changed ?? 0} séances` : 'Allures faciles d’origine rétablies');
     rerenderKeep();
   } else if ('cardioSnooze' in t.dataset) {

@@ -214,6 +214,12 @@ export function cardioCoach(ctx) {
       ${body}
       ${actions ? `<div class="coach-actions">${actions}</div>` : ''}
     </section>`;
+  // Juste après un ralentissement : on confirme, et on laisse revenir en arrière
+  if (st.shift > 0 && store.tools.cardioShiftAt && daysBetween(store.tools.cardioShiftAt, ctx.t) <= 7) {
+    return card('', `Allures faciles ralenties de ${st.shift} s/km`,
+      '<p class="coach-text">Tes footings, échauffements et retours au calme à venir sont plus lents. Tes séances rapides et tes tests n’ont pas changé.</p>',
+      `<button class="btn" data-cardio-shift="${-st.shift}">Annuler et revenir à mes allures d’origine</button>`);
+  }
   if (st.kind === 'high' && !snoozed) {
     const can = st.shift < 45;
     return card('is-warn', 'Tes footings sont trop intenses',
