@@ -23,7 +23,7 @@ import {
   resume as liveResume, finish as liveFinish, discard as liveDiscard, saveRun, setVoice, readDur,
 } from './live.js';
 import { readStravaCSV } from './strava-csv.js';
-import { hrFields, readHr, hrCard, sessionHr, cardioCoach, fcMax } from './cardio.js';
+import { hrFields, readHr, hrCard, sessionHr, cardioCoach, fcMax, kindField } from './cardio.js';
 import { placementField, extrasList, extraNotice, weekExtras } from './extra.js';
 import {
   calendarAll, calendarOne, shareSession, shareActivity, viewDefis, importChallenge, removeFriend, shareChallenge,
@@ -346,6 +346,7 @@ function viewAddRun(date) {
         ${timeField('duration', 'Durée', null)}
       </div>
       <label class="field"><span>Nom</span><input name="name" autocomplete="off" placeholder="Sortie du midi"></label>
+      ${kindField(null)}
       ${hrFields(null, null)}
       <fieldset class="rpe">
         <legend>Ressenti, de 1 (très facile) à 10 (à fond)</legend>
@@ -913,6 +914,26 @@ document.addEventListener('change', async (ev) => {
     return;
   }
   if (handleParcoursInput(ev, $view.querySelector('[data-parcours]'))) { ev.target.blur(); return; }
+  if (ev.target.matches('[data-add-date]')) {
+    const wrap = $view.querySelector('[data-place-wrap]');
+    if (wrap && ev.target.value) wrap.innerHTML = placementField(ev.target.value);
+    return;
+  }
+  const kindForm = ev.target.closest('[data-kind-form]');
+  if (kindForm && ev.target.matches('[data-run-kind]')) {
+    const a = store.activities.find((x) => x.id === kindForm.dataset.kindForm);
+    if (a) store.addActivities([{ ...a, kind: ev.target.value }], { link: false });
+    toast(ev.target.value === 'facile' ? 'Compté comme un footing' : 'Compté comme une sortie soutenue');
+    rerenderKeep();
+    return;
+  }
+  const placing = ev.target.closest('[data-placement]');
+  if (placing && ev.target.name === 'place') {
+    store.setPlacement(placing.dataset.placement, ev.target.value || null);
+    toast(ev.target.value ? `Rattachée à : ${findSession(ev.target.value)?.title || 'la séance'}` : 'Comptée en plus du programme');
+    rerenderKeep();
+    return;
+  }
   if (ev.target.matches('[data-theme-set]')) { store.saveTools({ theme: ev.target.value }); applyTheme(); return; }
   if (ev.target.matches('[data-plan-view]')) { store.saveTools({ planView: ev.target.value }); calMonth = null; rerenderKeep(); return; }
   if (ev.target.matches('[data-defi-name]')) { store.saveTools({ name: ev.target.value.trim().slice(0, 24) }); rerenderKeep(); return; }
@@ -977,6 +998,7 @@ document.addEventListener('submit', (ev) => {
       date, start: new Date(`${date}T${time}:00`).toISOString(),
       distance: Math.round(km * 1000), moving: sec, elapsed: sec,
       hrAvg: hr.hrAvg, hrMax: hr.hrMax,
+      kind: ['facile', 'soutenue'].includes(fd.get('run_kind')) ? fd.get('run_kind') : null,
       rpe: fd.get('rpe') ? Number(fd.get('rpe')) : null,
       note: String(fd.get('note') || '').trim(),
       extra: !place,
@@ -996,18 +1018,6 @@ document.addEventListener('submit', (ev) => {
     const fd = new FormData(shoeForm);
     addShoe({ name: String(fd.get('name') || '').trim(), since: fd.get('since') || today(), base: parseInt(fd.get('base'), 10) || 0 });
     toast('Paire ajoutée');
-    rerenderKeep();
-    return;
-  }
-  if (ev.target.matches('[data-add-date]')) {
-    const wrap = $view.querySelector('[data-place-wrap]');
-    if (wrap && ev.target.value) wrap.innerHTML = placementField(ev.target.value);
-    return;
-  }
-  const placing = ev.target.closest('[data-placement]');
-  if (placing && ev.target.name === 'place') {
-    store.setPlacement(placing.dataset.placement, ev.target.value || null);
-    toast(ev.target.value ? `Rattachée à : ${findSession(ev.target.value)?.title || 'la séance'}` : 'Comptée en plus du programme');
     rerenderKeep();
     return;
   }

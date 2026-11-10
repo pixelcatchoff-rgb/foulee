@@ -4,7 +4,7 @@ import { createMap, trackLayer, meMarker, haversine } from './map.js';
 import { distanceToRoute } from './routes.js';
 import { placementField } from './extra.js';
 import { clock, distance, duration, esc, paceRange, toISO, dateLong } from './util.js';
-import { hrFields, hrCard } from './cardio.js';
+import { hrFields, hrCard, kindField, runKind } from './cardio.js';
 import { linkedSession } from './extra.js';
 
 const LIVE_KEY = 'foulee.live';
@@ -580,6 +580,14 @@ export function viewActivity(id) {
       <div><dt>Temps</dt><dd>${clock(a.moving || a.elapsed)}</dd></div>
       <div><dt>Allure</dt><dd>${clock(pace)}<small>/km</small></dd></div>
     </dl>
+    ${(() => {
+      const linked = linkedSession(a.id);
+      const kind = runKind(a);
+      const type = linked?.type || (kind === 'facile' ? 'facile' : kind === 'soutenue' ? 'qualite' : null);
+      return `${hrCard({ hrAvg: a.hrAvg, hrMax: a.hrMax, type, askKind: !linked && !kind })}
+        ${linked ? '' : `<form data-kind-form="${esc(a.id)}">${kindField(kind)}</form>`}
+        ${!linked && !a.hrAvg && !a.hrMax && (a.source === 'gps' || a.source === 'manual') ? '<p class="hint">Pas de cardio noté : ajoute ta fréquence cardiaque moyenne et maximum dans « Modifier la sortie », le coach en tiendra compte.</p>' : ''}`;
+    })()}
     ${a.source === 'gps' || a.source === 'manual' ? `
       <details class="howto edit-run"${a.fixed ? '' : ''}>
         <summary>Modifier la sortie : durée, distance, cardio</summary>
@@ -593,7 +601,6 @@ export function viewActivity(id) {
       </details>` : ''}
     ${a.rpe || a.note ? `<p class="note">${a.rpe ? `Ressenti ${a.rpe}/10. ` : ''}${esc(a.note || '')}</p>` : ''}
     ${store.plan ? `<form class="placement" data-placement="${esc(a.id)}">${placementField(a.date, a.id)}</form>` : ''}
-    ${hrCard({ hrAvg: a.hrAvg, hrMax: a.hrMax, type: linkedSession(a.id)?.type || null })}
     ${a.splits?.length ? `
       <h2 class="section-title">Temps au kilomètre</h2>
       <ol class="split-list">${a.splits.map((s, i) => `<li><span>Km ${i + 1}</span><span>${clock(s)}</span></li>`).join('')}</ol>` : ''}

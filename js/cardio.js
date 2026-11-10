@@ -1,6 +1,6 @@
 // Cardio : saisie de la fréquence cardiaque (moyenne et maximum), zones, lecture d'une séance,
 // et conseils du coach tirés du cœur (footings trop intenses, fatigue, progrès d'endurance).
-import { store, allSessions } from './store.js';
+import { store, allSessions, allRuns } from './store.js';
 import { daysBetween, esc } from './util.js';
 
 const valid = (v) => Number.isFinite(v) && v >= 60 && v <= 230;
@@ -39,6 +39,23 @@ export function readHr(root) {
   return { hrAvg: a, hrMax: m };
 }
 
+/* ---------- Sorties en plus du programme : footing ou sortie soutenue ---------- */
+
+// Le genre choisi, sinon déduit du ressenti (7/10 et plus = soutenue)
+export function runKind(a) {
+  if (a.kind === 'facile' || a.kind === 'soutenue') return a.kind;
+  if (a.rpe) return a.rpe >= 7 ? 'soutenue' : 'facile';
+  return null;
+}
+
+export function kindField(kind) {
+  const r = (v, l) => `<label><input type="radio" name="run_kind" value="${v}" data-run-kind ${kind === v ? 'checked' : ''}><span>${l}</span></label>`;
+  return `
+    <div class="field kind-field"><span>C’était</span>
+      <div class="segmented segmented-compact">${r('facile', 'Un footing tranquille')}${r('soutenue', 'Une sortie soutenue')}</div>
+    </div>`;
+}
+
 /* ---------- FC max et zones ---------- */
 
 // Cardio d'une séance : le compte rendu, sinon la sortie rattachée
@@ -61,7 +78,7 @@ export function fcMax() {
     const e = store.entry(s.id);
     if (h?.hrMax) seen.push({ v: h.hrMax, hard: HARD.has(s.type) || (e?.rpe || 0) >= 8 });
   }
-  for (const a of store.activities) if (a.hrMax) seen.push({ v: a.hrMax, hard: (a.rpe || 0) >= 8 });
+  for (const a of store.activities) if (a.hrMax) seen.push({ v: a.hrMax, hard: (a.rpe || 0) >= 8 || runKind(a) === 'soutenue' });
   const ok = seen.filter((x) => x.v >= 140 && x.v <= 225);
   if (!ok.length) return null;
   const best = ok.reduce((m, x) => (x.v > m.v ? x : m));
@@ -102,7 +119,7 @@ function verdict(type, hrAvg, hrMax, M) {
 }
 
 // Carte « Cardio » d'une séance ou d'une sortie. `type` : facile, longue, qualite, test, objectif ou null.
-export function hrCard({ hrAvg, hrMax, type = null }) {
+export function hrCard({ hrAvg, hrMax, type = null, askKind = false }) {
   if (!hrAvg && !hrMax) return '';
   const M = fcMax();
   const pct = (v) => (M && v ? Math.round((v / M.v) * 100) : null);
@@ -123,6 +140,7 @@ export function hrCard({ hrAvg, hrMax, type = null }) {
         </div>
         <p class="gauge-legend"><span>Facile</span><span>Seuil</span><span>Intervalles</span></p>
         ${text ? `<p class="cardio-text">${esc(text)}</p>` : ''}
+        ${askKind ? '<p class="hint">Indique ci-dessous si c’était un footing ou une sortie soutenue : le coach saura comment lire ce cardio.</p>' : ''}
         ${M.solid ? '' : `<p class="hint">Zones calculées sur ${M.v} bpm, la plus haute valeur vue jusqu’ici. Elles se préciseront à ton premier test, ou saisis ta FC max dans <a href="#/analyse">Analyse</a>.</p>`}`
         : '<p class="hint">Indique ta FC max dans <a href="#/analyse">Analyse</a>, ou note la FC maximum de ton prochain test : Foulée situera chaque séance dans tes zones.</p>'}
     </section>`;
@@ -141,6 +159,13 @@ export function easySamples() {
     const pace = e.duration / e.distance;
     if (pace < 180 || pace > 900) continue;
     out.push({ id: s.id, date: e.date || s.date, hr: h.hrAvg, pace, bpk: (h.hrAvg * pace) / 60, rpe: e.rpe || null });
+  }
+  // Les footings faits en plus du programme comptent aussi
+  for (const a of allRuns()) {
+    if (!a.extra || !a.hrAvg || runKind(a) !== 'facile' || !a.distance) continue;
+    const pace = (a.moving || a.elapsed) / (a.distance / 1000);
+    if (pace < 180 || pace > 900) continue;
+    out.push({ id: a.id, date: a.date, hr: a.hrAvg, pace, bpk: (a.hrAvg * pace) / 60, rpe: a.rpe || null, extra: true });
   }
   return out.sort((a, b) => (a.date < b.date ? -1 : 1));
 }

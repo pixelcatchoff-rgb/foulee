@@ -1275,3 +1275,5 @@ body.run-on .live-map { height: 30vh; }
 .routine-cta-ico svg { width: 18px; height: 18px; fill: var(--ink); }
 .routine-cta b { display: block; font-weight: 600; font-size: 15px; line-height: 1.3; }
 .routine-cta small { color: var(--ink-soft); font-size: 13px; }
+.kind-field .segmented { display: grid; grid-template-columns: 1fr 1fr; }
+.kind-field .segmented span { white-space: normal; text-align: center; line-height: 1.2; padding: 8px 6px; }
