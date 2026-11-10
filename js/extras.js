@@ -252,7 +252,7 @@ export async function shareSession(id) {
     kicker: `${e.done ? 'Séance faite' : 'Au programme'} · ${dateShort(e.date || s.date)}`,
     title: s.title,
     stats,
-    footer: `Objectif : ${store.plan.goal.label}.${e.rpe ? ` Ressenti ${e.rpe}/10.` : ''}`,
+    footer: `Objectif : ${store.plan.goal.label}.${e.rpe ? ` Ressenti ${e.rpe}/10.` : ''}${e.hrAvg ? ` FC moyenne ${Math.round(e.hrAvg)} bpm.` : ''}`,
     accent: TYPE_COLOR[s.type] || '#3EE6A8',
     progress: { ratio: doneN / all.length, label: `Programme : ${doneN} séance${doneN > 1 ? 's' : ''} faite${doneN > 1 ? 's' : ''} sur ${all.length}, semaine ${s.week}/${store.plan.weeks.length}` },
   });
@@ -267,7 +267,7 @@ export async function shareActivity(id) {
     kicker: `Sortie · ${dateShort(a.date)}`,
     title: a.name || 'Sortie',
     stats: [['Distance', `${km1(a.distance)} km`], ['Temps', clock(a.moving || a.elapsed)], ['Allure', `${clock(pace)}/km`]],
-    footer: a.hrAvg ? `Fréquence cardiaque moyenne ${Math.round(a.hrAvg)}.` : 'Enregistrée avec Foulée.',
+    footer: a.hrAvg ? `Fréquence cardiaque moyenne ${Math.round(a.hrAvg)} bpm${a.hrMax ? `, maximum ${Math.round(a.hrMax)}` : ''}.` : 'Enregistrée avec Foulée.',
     accent: '#5AA9FF',
   });
   return shareBlob(blob, 'foulee-sortie.png', 'Ma sortie avec Foulée');
@@ -624,53 +624,7 @@ export function painBlock() {
     </section>`;
 }
 
-/* =========================================================
-   Zones cardiaques
-   ========================================================= */
-
-export function fcMax() {
-  if (store.tools.fcMax) return { v: store.tools.fcMax, src: 'saisie' };
-  const seen = store.activities.map((a) => a.hrMax || 0).filter((v) => v >= 150 && v <= 220);
-  if (seen.length) return { v: Math.max(...seen), src: 'mesurée' };
-  return null;
-}
-
-export function hrZones(max) {
-  return [
-    ['Facile', 'Footings, sortie longue', 0.6, 0.79],
-    ['Seuil', 'Tempo, seuil', 0.8, 0.88],
-    ['Intervalles', 'Fractionné, tests', 0.89, 1],
-  ].map(([name, use, a, b]) => ({ name, use, lo: Math.round(max * a), hi: Math.round(max * b) }));
-}
-
-export function easyHrCap() {
-  const m = fcMax();
-  return m ? Math.round(m.v * 0.79) : null;
-}
-
-export function hrBlock(runs) {
-  const m = fcMax();
-  const withHr = runs.filter((r) => r.hrAvg).slice(-20);
-  if (!m && !withHr.length) return '';
-  const Z = m ? hrZones(m.v) : null;
-  let dist = '';
-  if (Z && withHr.length >= 3) {
-    const easyN = withHr.filter((r) => r.hrAvg <= Z[0].hi).length;
-    const pct = Math.round((easyN / withHr.length) * 100);
-    dist = `<p class="hr-mix"><b>${pct} %</b> de tes ${withHr.length} dernières sorties en zone facile (fréquence moyenne). ${pct >= 70 ? 'Bon dosage.' : 'Trop peu : ralentis tes footings, ce sont eux qui construisent l’endurance.'}</p>`;
-  }
-  return `
-    <section class="analyse-block" data-hr>
-      <h2 class="section-title">Zones cardiaques</h2>
-      <label class="field"><span>Fréquence cardiaque maximale</span>
-        <span class="unit-input"><input data-hr-max inputmode="numeric" maxlength="3" autocomplete="off" value="${store.tools.fcMax || ''}" placeholder="${m ? m.v : 'ex. 185'}"><em>bpm</em></span>
-      </label>
-      ${m ? `<p class="hint">${m.src === 'mesurée' ? `${m.v} bpm, la plus haute valeur vue dans tes sorties. Saisis ta vraie FC max si tu la connais (mesurée lors d’un test à fond).` : 'Valeur saisie.'}</p>` : '<p class="hint">Indique ta FC max (mesurée à fond, en fin de test) pour calculer tes zones.</p>'}
-      ${Z ? `<table class="table zones-table"><tbody>${Z.map((z) => `<tr><th scope="row">${z.name}<small>${z.use}</small></th><td>${z.lo}–${z.hi} bpm</td></tr>`).join('')}</tbody></table>` : ''}
-      ${dist}
-      <p class="hint">Repères en pourcentage de la FC max. La fréquence met 2 à 3 minutes à monter : sur les fractions courtes, fie-toi plutôt à l’allure.</p>
-    </section>`;
-}
+export { fcMax, hrZones, easyHrCap, hrBlock } from './cardio.js';
 
 /* =========================================================
    Sauvegarde

@@ -1192,3 +1192,86 @@ body.run-on .live-map { height: 30vh; }
 .week summary { align-items: center; }
 .nw { white-space: nowrap; }
 .srow dd small + * { margin-left: 3px; }
+
+/* =========================================================
+   Foulée 3.3 : cardio et renforcement
+   ========================================================= */
+
+/* Saisie de la fréquence cardiaque */
+.hr-in { border: 1px solid var(--line); border-radius: var(--radius-l); padding: 12px 14px 4px; margin: 0 0 14px; background: var(--surface); min-width: 0; }
+.hr-in legend { display: flex; align-items: center; gap: 8px; padding: 0 6px; font: 800 13px/1 var(--font-cond); text-transform: uppercase; letter-spacing: .06em; color: var(--ink); }
+.hr-in legend small { font: 500 12px/1 var(--font); text-transform: none; letter-spacing: 0; color: var(--ink-soft); }
+.hr-in-ico svg, .cardio-ico svg { width: 20px; height: 20px; fill: none; stroke: var(--test); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; display: block; }
+.hr-row { grid-template-columns: 1fr 1fr; }
+.hr-in .field { margin-bottom: 8px; }
+.hr-in .field input { background: var(--surface-2); }
+.hr-in .hint { margin: 0 0 8px; font-size: 13px; }
+.live-fix .hr-in { margin-top: 4px; }
+
+/* Carte « Cardio » d'une séance */
+.cardio { margin: 0 0 16px; padding: 16px; border-radius: var(--radius-l); background: var(--surface); border: 1px solid var(--line); }
+.cardio.is-good { border-color: color-mix(in srgb, var(--easy) 55%, var(--line)); }
+.cardio.is-warn { border-color: color-mix(in srgb, var(--quality) 60%, var(--line)); }
+.cardio.is-bad { border-color: color-mix(in srgb, var(--test) 65%, var(--line)); }
+.cardio-title { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font: 800 14px/1 var(--font-cond); text-transform: uppercase; letter-spacing: .06em; }
+.cardio-zone { margin-left: auto; font: 600 12px/1 var(--font); text-transform: none; letter-spacing: 0; padding: 5px 10px; border-radius: 999px; background: var(--surface-2); color: var(--ink-soft); }
+.is-good .cardio-zone { background: color-mix(in srgb, var(--easy) 16%, transparent); color: var(--easy); }
+.is-warn .cardio-zone { background: color-mix(in srgb, var(--quality) 16%, transparent); color: var(--quality); }
+.is-bad .cardio-zone { background: color-mix(in srgb, var(--test) 16%, transparent); color: var(--test); }
+.cardio-figs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0 0 16px; }
+.cardio-figs div + div { border-left: 1px solid var(--line); padding-left: 12px; }
+.cardio-figs dt { font-size: 12px; color: var(--ink-soft); }
+.cardio-figs dd { margin: 2px 0 0; font: 800 30px/1 var(--font-cond); font-variant-numeric: tabular-nums; }
+.cardio-figs dd small { font: 600 13px/1 var(--font); color: var(--ink-soft); margin-left: 4px; }
+.cardio-figs dd.cardio-pct { font: 500 12px/1.3 var(--font); color: var(--ink-soft); margin-top: 4px; }
+.gauge { position: relative; height: 10px; margin: 6px 0 6px; }
+.gauge-z { position: absolute; top: 0; height: 10px; }
+.gauge-z.z1 { background: var(--easy); border-radius: 5px 0 0 5px; opacity: .85; }
+.gauge-z.z2 { background: var(--quality); opacity: .85; box-shadow: -2px 0 0 var(--surface); }
+.gauge-z.z3 { background: var(--test); border-radius: 0 5px 5px 0; opacity: .85; box-shadow: -2px 0 0 var(--surface); }
+.gauge-avg { position: absolute; top: -5px; width: 20px; height: 20px; margin-left: -10px; border-radius: 50%; background: var(--ink); border: 4px solid var(--surface); box-shadow: 0 0 0 1.5px var(--ink); }
+.gauge-max { position: absolute; top: -5px; width: 3px; height: 20px; margin-left: -1.5px; border-radius: 2px; background: var(--ink); opacity: .7; }
+.gauge-legend { display: grid; grid-template-columns: 54.4% 20% 1fr; margin: 0 0 10px; font-size: 12px; color: var(--ink-soft); }
+.cardio-text { margin: 0; font-size: 15px; }
+.cardio .hint { margin: 8px 0 0; font-size: 13px; }
+
+/* Coach cardio (accueil) */
+.coach-cardio { margin: 0 0 16px; border-color: var(--easy); }
+.coach-cardio.is-warn { border-color: var(--quality); background: linear-gradient(160deg, color-mix(in srgb, var(--quality) 9%, transparent), transparent 45%), var(--surface); }
+.coach-cardio .coach-kicker { display: flex; align-items: center; gap: 6px; }
+.coach-cardio.is-warn .coach-kicker { color: var(--quality); }
+.coach-cardio .coach-kicker svg { width: 16px; height: 16px; stroke: currentColor; }
+.coach-cardio .coach-text b { color: var(--ink); font-family: var(--font-cond); }
+.coach-cardio .coach-actions .btn { width: 100%; }
+
+/* Renforcement du coureur : carte d'appel */
+.strength {
+  display: grid; grid-template-columns: auto 1fr; gap: 12px 14px; align-items: center; text-decoration: none; color: var(--ink);
+  margin: 0 0 16px; padding: 14px 16px; border-radius: var(--radius-l);
+  border: 1.5px solid color-mix(in srgb, var(--long) 70%, var(--line));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--long) 16%, var(--surface)), var(--surface) 62%);
+}
+.strength-ico { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: var(--long); }
+.strength-ico svg { width: 28px; height: 28px; fill: none; stroke: var(--bg); stroke-width: 2.2; stroke-linecap: round; }
+.strength-body { display: grid; gap: 3px; min-width: 0; }
+.strength-body b { font: 800 16px/1.2 var(--font-cond); text-transform: uppercase; letter-spacing: .02em; }
+.strength-body small { font-size: 14px; color: var(--ink-soft); line-height: 1.35; }
+.strength-week { display: flex; align-items: center; gap: 8px; margin-top: 4px; font: 600 12px/1 var(--font-cond); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-soft); }
+.pips { display: inline-flex; gap: 4px; }
+.pips i { width: 22px; height: 6px; border-radius: 3px; background: var(--line); }
+.pips i.is-on { background: var(--easy); }
+.strength-go {
+  grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; min-height: 46px; border-radius: 999px;
+  background: var(--ink); color: var(--bg); font-weight: 600; font-size: 16px;
+}
+.strength.is-done { border-color: color-mix(in srgb, var(--easy) 55%, var(--line)); background: var(--surface); }
+.strength.is-done .strength-ico { background: var(--easy); }
+.strength.is-done .strength-go { background: var(--surface-2); color: var(--ink); border: 1px solid var(--line); }
+.hub li > .strength { margin: 0; }
+.tip-routines { display: grid; gap: 10px; margin-top: 14px; }
+.tip-routines .strength { margin: 0; }
+.routine-cta { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; padding: 12px 14px; border-radius: var(--radius-l); border: 1px solid var(--line); background: var(--surface); text-decoration: none; }
+.routine-cta-ico { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); border: 1px solid var(--line); }
+.routine-cta-ico svg { width: 18px; height: 18px; fill: var(--ink); }
+.routine-cta b { display: block; font-weight: 600; font-size: 15px; line-height: 1.3; }
+.routine-cta small { color: var(--ink-soft); font-size: 13px; }

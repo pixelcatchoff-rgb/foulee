@@ -12,7 +12,7 @@ import {
   viewConseils, viewArticle, viewJourJ, sessionTipsHTML, todayTip, savePref,
 } from './conseils.js';
 import {
-  routinesList, viewRoutine, mountRoutine, unmountRoutine, handleRoutineClick, handleRoutineInput,
+  routinesList, viewRoutine, mountRoutine, unmountRoutine, handleRoutineClick, handleRoutineInput, strengthCard,
 } from './routines.js';
 import {
   viewParcours, mountParcours, unmountParcours, handleParcoursClick, handleParcoursInput,
@@ -23,6 +23,7 @@ import {
   resume as liveResume, finish as liveFinish, discard as liveDiscard, saveRun, setVoice, readDur,
 } from './live.js';
 import { readStravaCSV } from './strava-csv.js';
+import { hrFields, readHr, hrCard, sessionHr, cardioCoach, fcMax } from './cardio.js';
 import { placementField, extrasList, extraNotice, weekExtras } from './extra.js';
 import {
   calendarAll, calendarOne, shareSession, shareActivity, viewDefis, importChallenge, removeFriend, shareChallenge,
@@ -30,7 +31,7 @@ import {
   painNotice, shareBackup, backupNotice, firstSteps, weekRing, monthView, weekDays,
 } from './extras.js';
 import { viewQuiz, handleQuizClick, handleQuizInput, setQuizToday } from './quiz.js';
-import { vdotFromRace, repace, zones as coachZones, ZONE_INFO } from './coach.js';
+import { vdotFromRace, repace, shiftEasy, zones as coachZones, ZONE_INFO } from './coach.js';
 import {
   stravaConfigured, stravaConnected, connectStrava, handleStravaCallback, syncStrava, disconnectStrava, stravaSetup,
 } from './strava.js';
@@ -201,7 +202,9 @@ function viewToday() {
     ${hero}
     <a class="add-run" href="#/ajouter-sortie">+ Ajouter une sortie hors programme</a>
     ${extraNotice(ctx)}
+    ${cardioCoach(ctx)}
     ${weatherBlock(s, ctx.t)}
+    ${strengthCard(ctx.t)}
     ${[painNotice(ctx.t), missed, hardNotice, shoeNotice(), backupNotice()].filter((x) => x && x.trim()).slice(0, 2).join('')}
     ${estimateCard(ctx)}
     ${firstSteps()}
@@ -343,9 +346,7 @@ function viewAddRun(date) {
         ${timeField('duration', 'Durée', null)}
       </div>
       <label class="field"><span>Nom</span><input name="name" autocomplete="off" placeholder="Sortie du midi"></label>
-      <label class="field"><span>Fréquence cardiaque moyenne (facultatif)</span>
-        <span class="unit-input"><input name="hr" inputmode="numeric" pattern="[0-9]*" maxlength="3" autocomplete="off"><em>bpm</em></span>
-      </label>
+      ${hrFields(null, null)}
       <fieldset class="rpe">
         <legend>Ressenti, de 1 (très facile) à 10 (à fond)</legend>
         <div class="rpe-scale">
@@ -389,6 +390,7 @@ function viewSession(id) {
     </header>
 
     ${weatherBlock(s, today())}
+    ${e.done ? hrCard({ ...(sessionHr(s) || {}), type: s.type }) : ''}
     <section class="why"><h2 class="why-title">Pourquoi cette séance</h2><p>${esc(why(s))}</p></section>
     ${stepsHTML(describe(s.steps))}
     ${s.note ? `<p class="note">${esc(s.note)}</p>` : ''}
@@ -421,6 +423,7 @@ function viewSession(id) {
             <label><input type="radio" name="rpe" value="${n}" ${rpe === n ? 'checked' : ''}><span>${n}</span></label>`).join('')}
         </div>
       </fieldset>
+      ${hrFields(sessionHr(s)?.hrAvg || e.hrAvg, sessionHr(s)?.hrMax || e.hrMax)}
       ${painFields(e)}
       <label class="field"><span>Note</span><textarea name="note" rows="2" placeholder="Sensations, météo…">${esc(e.note || '')}</textarea></label>
       <div class="form-actions">
@@ -489,6 +492,7 @@ function viewRunHub() {
         <span class="hub-title">Trouver un parcours</span>
         <span class="hub-text">${next ? `Trois boucles de ${kmNext} km autour de toi, ou de l’endroit choisi sur la carte.` : 'Trois boucles autour de toi, ou de l’endroit choisi sur la carte.'}</span>
       </a></li>
+      <li>${strengthCard(ctx.t)}</li>
       <li><a class="hub-card t-test" href="#/defis">
         ${ART.cup}
         <span class="hub-title">Défis entre amis</span>
@@ -581,7 +585,7 @@ function viewSettings() {
       <p>Efface ton programme, tes séances cochées et tes sorties importées. L’appli revient à zéro.</p>
       <button class="btn btn-ghost" data-reset>Effacer mes données</button>
     </section>
-    <p class="hint">Foulée, version 3.2</p>
+    <p class="hint">Foulée, version 3.3</p>
   `;
 }
 
@@ -682,6 +686,36 @@ function applyTheme() {
 }
 applyTheme();
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', applyTheme);
+
+// Une FC maximum notée au-dessus de la FC max saisie : la FC max est relevée
+function raiseFcMax(hrMax) {
+  if (hrMax && store.tools.fcMax && hrMax > store.tools.fcMax) {
+    store.saveTools({ fcMax: hrMax });
+    setTimeout(() => toast(`Nouvelle FC max : ${hrMax} bpm. Tes zones sont recalculées.`), 2400);
+  }
+}
+
+function handleCardioClick(ev) {
+  const t = ev.target.closest('[data-cardio-shift],[data-cardio-snooze],[data-cardio-fatigue]');
+  if (!t) return false;
+  ev.preventDefault();
+  if (t.dataset.cardioShift) {
+    const sec = Number(t.dataset.cardioShift);
+    const r = store.adjustPlan((plan) => shiftEasy(plan, sec, today()));
+    store.saveTools({ cardioSnooze: today() });
+    toast(sec > 0 ? `Allures faciles ralenties de ${sec} s/km sur ${r?.changed ?? 0} séances` : 'Allures faciles d’origine rétablies');
+    rerenderKeep();
+  } else if ('cardioSnooze' in t.dataset) {
+    store.saveTools({ cardioSnooze: today() });
+    rerenderKeep();
+  } else if (t.dataset.cardioFatigue) {
+    store.saveTools({ cardioSnooze: today() });
+    pendingAdapt = { id: t.dataset.cardioFatigue, reason: 'fatigue' };
+    location.hash = `#/seance/${t.dataset.cardioFatigue}`;
+    setTimeout(() => document.querySelector('.coach')?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 80);
+  }
+  return true;
+}
 
 function handleExtrasClick(ev) {
   const t = ev.target.closest('[data-ics-all],[data-ics-one],[data-share-session],[data-share-activity],[data-defi-share],[data-defi-remove],[data-wx-enable],[data-wx-adapt],[data-shoe-act],[data-backup-share],[data-onboard-done],[data-cal],[data-goto-log]');
@@ -789,6 +823,7 @@ document.addEventListener('click', (ev) => {
   if (handleQuizClick(ev, $view.querySelector('[data-quiz]'))) return;
   if (handleRoutineClick(ev, $view.querySelector('[data-routine]'))) return;
   if (handleCoachClick(ev)) return;
+  if (handleCardioClick(ev)) return;
   if (handleExtrasClick(ev)) return;
   const t = ev.target.closest('[data-toggle],[data-quickdone],[data-clear],[data-export],[data-reset],[data-back],[data-strava-connect],[data-strava-sync],[data-strava-disconnect],[data-clear-activities],[data-restore-plan],[data-export-plan],[data-live-act],[data-delete-activity]');
   if (!t) return;
@@ -802,7 +837,10 @@ document.addEventListener('click', (ev) => {
       const v = parseFloat(String(document.querySelector('[data-live-dist]')?.value || '').replace(',', '.'));
       const place = document.querySelector('[data-live-place] input[name=place]:checked');
       const sec = readDur(document, 'live');
-      const id = saveRun(Number.isFinite(v) && v > 0 && v < 100 ? v : null, place ? place.value || null : undefined, sec && sec < 86400 ? sec : null);
+      const hr = readHr(document.querySelector('[data-controls]'));
+      if (hr.error) { toast(hr.error); return; }
+      raiseFcMax(hr.hrMax);
+      const id = saveRun(Number.isFinite(v) && v > 0 && v < 100 ? v : null, place ? place.value || null : undefined, sec && sec < 86400 ? sec : null, hr);
       toast('Sortie enregistrée'); location.hash = `#/sortie/${encodeURIComponent(id)}`; }
     else if (act === 'discard') { if (confirm('Supprimer cette course sans l’enregistrer ?')) { liveDiscard(); location.hash = '#/'; } }
     return;
@@ -931,18 +969,21 @@ document.addEventListener('submit', (ev) => {
     const pace = sec / km;
     if (pace < 150 || pace > 1200) { toast(`Allure de ${clock(pace)}/km : vérifie la distance et la durée`); return; }
     const time = /^\d{2}:\d{2}$/.test(fd.get('time') || '') ? fd.get('time') : '12:00';
-    const hr = parseInt(fd.get('hr'), 10);
+    const hr = readHr(addRun);
+    if (hr.error) { toast(hr.error); return; }
     const place = String(fd.get('place') || '') || null;
     const id = store.addManualRun({
       name: String(fd.get('name') || '').trim() || 'Sortie hors programme',
       date, start: new Date(`${date}T${time}:00`).toISOString(),
       distance: Math.round(km * 1000), moving: sec, elapsed: sec,
-      hrAvg: hr >= 60 && hr <= 230 ? hr : null,
+      hrAvg: hr.hrAvg, hrMax: hr.hrMax,
       rpe: fd.get('rpe') ? Number(fd.get('rpe')) : null,
       note: String(fd.get('note') || '').trim(),
       extra: !place,
     });
     store.setPlacement(id, place);
+    if (place && (hr.hrAvg || hr.hrMax)) store.save(place, { hrAvg: hr.hrAvg, hrMax: hr.hrMax });
+    raiseFcMax(hr.hrMax);
     if (place) markJustDone(place);
     navigator.vibrate?.(15);
     toast(place ? 'Sortie ajoutée et séance cochée' : 'Sortie ajoutée en plus du programme');
@@ -979,20 +1020,26 @@ document.addEventListener('submit', (ev) => {
     if (!sec || sec >= 86400) { toast('Indique une durée, par exemple 32 min 15 s'); return; }
     const pace = sec / km;
     if (pace < 150 || pace > 1200) { toast(pace < 150 ? 'Allure trop rapide pour être vraie : vérifie la durée et la distance' : 'Allure de plus de 20 min/km : vérifie la durée et la distance'); return; }
+    const hr = readHr(fix);
+    if (hr.error) { toast(hr.error); return; }
     const id = fix.dataset.fixDist;
     const a = store.activities.find((x) => x.id === id);
     if (a) {
       const sameKm = Math.abs(a.distance - km * 1000) < 5;
       const sameSec = Math.abs((a.moving || a.elapsed) - sec) < 1;
-      if (sameKm && sameSec) { toast('Rien à changer'); return; }
+      const sameHr = (a.hrAvg || null) === hr.hrAvg && (a.hrMax || null) === hr.hrMax;
+      if (sameKm && sameSec && sameHr) { toast('Rien à changer'); return; }
+      raiseFcMax(hr.hrMax);
+      const same = sameKm && sameSec;
       store.addActivities([{
         ...a, distance: Math.round(km * 1000), moving: sec, elapsed: Math.max(sec, sameSec ? a.elapsed || sec : sec),
-        fixed: true, splits: sameKm && sameSec ? a.splits : [],
+        hrAvg: hr.hrAvg, hrMax: hr.hrMax,
+        fixed: same ? a.fixed : true, splits: same ? a.splits : [],
       }], { link: false });
-      // La séance rattachée prend la nouvelle durée et la nouvelle distance
+      // La séance rattachée prend les nouvelles valeurs
       for (const sess of allSessions()) {
         const e = store.entry(sess.id);
-        if (e?.activityId === id) store.save(sess.id, { distance: Math.round(km * 100) / 100, duration: sec });
+        if (e?.activityId === id) store.save(sess.id, { distance: Math.round(km * 100) / 100, duration: sec, hrAvg: hr.hrAvg, hrMax: hr.hrMax });
       }
       toast('Sortie modifiée');
     }
@@ -1017,7 +1064,11 @@ document.addEventListener('submit', (ev) => {
   const fd = new FormData(form);
   const dist = parseFloat(String(fd.get('distance') || '').replace(',', '.'));
   const time3k = readTime(fd, 'time3k');
+  const hr = readHr(form);
+  if (hr.error) { toast(hr.error); return; }
+  raiseFcMax(hr.hrMax);
   store.save(form.dataset.log, {
+    hrAvg: hr.hrAvg, hrMax: hr.hrMax,
     date: fd.get('date') || null,
     duration: readTime(fd, 'duration'),
     distance: Number.isFinite(dist) ? dist : null,

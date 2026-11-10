@@ -1,5 +1,5 @@
 // Fonctionne hors connexion : les fichiers de l'appli sont gardés en cache.
-const VERSION = 'foulee-3.2.1';
+const VERSION = 'foulee-3.3.0';
 const TILES = 'foulee-tiles';
 const MAX_TILES = 1500;
 const SHELL = [
@@ -28,6 +28,7 @@ const SHELL = [
   './js/routes.js',
   './js/parcours.js',
   './js/extras.js',
+  './js/cardio.js',
   './js/extra.js',
   './icons/icon-192.png',
   './icons/icon-512.png',

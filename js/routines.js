@@ -1,6 +1,6 @@
 // Routines guidées à la voix : échauffement dynamique, renforcement, retour au calme.
 import { store } from './store.js';
-import { esc } from './util.js';
+import { esc, todayISO, parseISO, addDays } from './util.js';
 
 const ex = (name, dur, how, side) => ({ name, dur, how, side });
 const rest = (dur = 15) => ({ name: 'Récupération', dur, how: 'Souffle, prépare l’exercice suivant.', rest: true });
@@ -71,6 +71,44 @@ function sequence(r) {
   return { list: out, rounds };
 }
 
+/* ---------- Suivi du renforcement : 2 fois par semaine ---------- */
+
+export const STRENGTH_GOAL = 2;
+const DUMBBELL = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6M6 6.5v11M18 6.5v11M21 9v6M6 12h12"/></svg>';
+const mondayOf = (iso) => addDays(iso, -((parseISO(iso).getDay() + 6) % 7));
+
+// Nombre de routines de renforcement terminées dans la semaine (lundi à dimanche) de la date donnée
+export function strengthWeek(t = todayISO()) {
+  const from = mondayOf(t), to = addDays(from, 6);
+  return (store.tools.routineLog || []).filter((x) => x.id === 'renforcement' && x.date >= from && x.date <= to).length;
+}
+
+function logRoutine(id) {
+  const log = (store.tools.routineLog || []).slice(-120);
+  log.push({ id, date: todayISO() });
+  store.saveTools({ routineLog: log });
+}
+
+const pips = (n) => `<span class="pips" aria-hidden="true">${Array.from({ length: STRENGTH_GOAL }, (_, i) => `<i class="${i < n ? 'is-on' : ''}"></i>`).join('')}</span>`;
+
+// Grande carte d'appel : accueil, séance, onglet Courir
+export function strengthCard(t = todayISO(), { compact = false } = {}) {
+  const n = strengthWeek(t);
+  const r = ROUTINES.renforcement;
+  const min = Math.round(sequence(r).list.reduce((s, x) => s + x.dur, 0) / 60);
+  const done = n >= STRENGTH_GOAL;
+  return `
+    <a class="strength${done ? ' is-done' : ''}${compact ? ' is-compact' : ''}" href="#/routine/renforcement" aria-label="Renforcement du coureur, ${min} minutes, ${Math.min(n, STRENGTH_GOAL)} sur ${STRENGTH_GOAL} cette semaine">
+      <span class="strength-ico">${DUMBBELL}</span>
+      <span class="strength-body">
+        <b>Renforcement du coureur</b>
+        <small>${done ? 'Objectif de la semaine atteint. Une séance de plus reste possible.' : `${min} min, guidé à la voix, sans matériel. Jusqu’à trois fois moins de blessures.`}</small>
+        <span class="strength-week">${pips(n)}${Math.min(n, STRENGTH_GOAL)}/${STRENGTH_GOAL} cette semaine</span>
+      </span>
+      <span class="strength-go">${done ? 'Refaire' : 'Démarrer'}</span>
+    </a>`;
+}
+
 export function routinesList() {
   return Object.values(ROUTINES).map((r) => ({ ...r, total: sequence(r).list.reduce((s, x) => s + x.dur, 0) }));
 }
@@ -126,7 +164,9 @@ function paint() {
   const card = p.root.querySelector('[data-rt-card]');
   if (p.done) {
     card.className = 'rt-card is-done';
-    card.innerHTML = '<span class="rt-name">Terminé</span><span class="rt-how">Bravo. Pense à le noter dans ta séance du jour.</span>';
+    card.innerHTML = p.r.id === 'renforcement'
+      ? `<span class="rt-name">Terminé</span><span class="rt-how">Bravo. Séance de renforcement comptée : ${Math.min(strengthWeek(), STRENGTH_GOAL)}/${STRENGTH_GOAL} cette semaine.</span>`
+      : '<span class="rt-name">Terminé</span><span class="rt-how">Bravo, tu es prêt.</span>';
   } else {
     card.className = `rt-card${cur.rest ? ' is-rest' : ''}`;
     card.innerHTML = `
@@ -171,6 +211,7 @@ function advance() {
   if (p.i >= p.list.length) {
     p.done = true;
     p.running = false;
+    logRoutine(p.r.id);
     clearInterval(p.timer);
     p.wake?.release?.();
     say('Routine terminée. Bravo.');

@@ -4,6 +4,7 @@
 import { store, allSessions } from './store.js';
 import { totalTime } from './steps.js';
 import { clock, daysBetween, esc, distance as fmtDist } from './util.js';
+import { strengthCard } from './routines.js';
 import {
   foodProfile, recovery, preSnack, preMeal, raceBreakfast, loadingDay, proteinServing, coffee, hydration, portionNote,
 } from './foods.js';
@@ -209,7 +210,9 @@ export function sessionTipsHTML(s) {
       ${block('Avant', t.before)}
       ${block('Pendant', t.during)}
       ${block('Après', t.after)}
-      ${t.routines.length ? `<div class="tip-routines">${t.routines.map(([id, label]) => `<a class="btn btn-small" href="#/routine/${id}">${esc(label)}</a>`).join('')}</div>` : ''}
+      ${t.routines.length ? `<div class="tip-routines">${t.routines.map(([id, label]) => (id === 'renforcement'
+        ? strengthCard()
+        : `<a class="routine-cta" href="#/routine/${id}"><span class="routine-cta-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z"/></svg></span><span><b>${esc(label)}</b><small>Routine guidée à la voix</small></span></a>`)).join('')}</div>` : ''}
     </section>`;
 }
 

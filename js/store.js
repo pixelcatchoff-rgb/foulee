@@ -109,6 +109,7 @@ export const store = {
         duration: a.moving || a.elapsed,
         distance: Math.round(a.distance / 10) / 100,
         hrAvg: a.hrAvg || prev.hrAvg || null,
+        hrMax: a.hrMax || prev.hrMax || null,
         rpe: prev.rpe || a.rpe || null,
         updated: Date.now(),
       };
@@ -231,7 +232,7 @@ function absorbTwin(a) {
   if (twin.source === 'manual') {
     delete state.activities[twin.id];
     for (const e of Object.values(state.log)) if (e.activityId === twin.id) e.activityId = a.id;
-    return { ...a, extra: !!twin.extra, rpe: twin.rpe || a.rpe, note: twin.note || a.note, hrAvg: a.hrAvg || twin.hrAvg };
+    return { ...a, extra: !!twin.extra, rpe: twin.rpe || a.rpe, note: twin.note || a.note, hrAvg: a.hrAvg || twin.hrAvg, hrMax: a.hrMax || twin.hrMax };
   }
   return { ...a, extra: !!twin.extra, twin: twin.id };
 }
@@ -273,6 +274,7 @@ function linkActivities() {
         duration: prev.duration || a.moving || a.elapsed,
         distance: prev.distance || Math.round(a.distance / 10) / 100,
         hrAvg: a.hrAvg || prev.hrAvg || null,
+        hrMax: a.hrMax || prev.hrMax || null,
         updated: Date.now(),
       };
       linked += 1;
@@ -319,7 +321,7 @@ export function allRuns() {
     if (!e.duration || !e.distance) continue;
     runs.push({
       id: `log-${s.id}`, source: 'log', name: s.title, date: e.date || s.date, start: `${e.date || s.date}T12:00:00`,
-      distance: e.distance * 1000, moving: e.duration, elapsed: e.duration, hrAvg: e.hrAvg || null,
+      distance: e.distance * 1000, moving: e.duration, elapsed: e.duration, hrAvg: e.hrAvg || null, hrMax: e.hrMax || null,
     });
   }
   return runs.sort((a, b) => (a.start < b.start ? -1 : 1));

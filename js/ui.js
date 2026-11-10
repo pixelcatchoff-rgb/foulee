@@ -4,6 +4,7 @@ import { store, allSessions } from './store.js';
 import { totalTime } from './steps.js';
 import { sessionDistance } from './routes.js';
 import { raceTime } from './coach.js';
+import { cardioConfidence } from './cardio.js';
 import { clock, daysBetween, dateShort, esc, addDays, distance as fmtDist } from './util.js';
 
 /* ---------- Icônes hexagonales ---------- */
@@ -120,7 +121,8 @@ export function estimate(ctx) {
   const spread = 0.015 + (1 - f) * 0.03 + (c.estimated && !tests ? 0.02 : 0) + (1 - Math.min(1, reg)) * 0.03;
   const best = raceTime(projected, dist);
   const worst = best * (1 + spread);
-  const confidence = Math.round(Math.min(95, 15 + f * 45 * Math.min(1, reg) + tests * 12 + (c.estimated ? 0 : 10)));
+  // Le cardio compte : des footings vraiment faciles rendent la progression plus sûre
+  const confidence = Math.round(Math.max(5, Math.min(95, 15 + f * 45 * Math.min(1, reg) + tests * 12 + (c.estimated ? 0 : 10) + cardioConfidence(ctx.t))));
   return { best, worst, confidence, dist, goal: plan.goal.time };
 }
 

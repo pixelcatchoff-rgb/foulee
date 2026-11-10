@@ -4,6 +4,8 @@ import { createMap, trackLayer, meMarker, haversine } from './map.js';
 import { distanceToRoute } from './routes.js';
 import { placementField } from './extra.js';
 import { clock, distance, duration, esc, paceRange, toISO, dateLong } from './util.js';
+import { hrFields, hrCard } from './cardio.js';
+import { linkedSession } from './extra.js';
 
 const LIVE_KEY = 'foulee.live';
 const MAX_ACC = 50;      // précision GPS acceptée en temps normal (m)
@@ -312,7 +314,7 @@ export function discard() {
 // Enregistre la sortie dans le suivi ; renvoie l'identifiant de la sortie.
 // `fixedKm` / `fixedSec` : distance et durée corrigées à la main (GPS trompé, chrono oublié).
 // `place` : séance remplacée (id), null = en plus du programme, undefined = rattachement automatique.
-export function saveRun(fixedKm = null, place = undefined, fixedSec = null) {
+export function saveRun(fixedKm = null, place = undefined, fixedSec = null, hr = {}) {
   const start = new Date(run.startedAt);
   const id = `gps-${run.startedAt}`;
   const elapsed = Math.round(((run.endedAt || now()) - run.startedAt) / 1000);
@@ -341,12 +343,15 @@ export function saveRun(fixedKm = null, place = undefined, fixedSec = null) {
     activity.fixed = true;
     activity.splits = [];
   }
+  if (hr?.hrAvg) activity.hrAvg = hr.hrAvg;
+  if (hr?.hrMax) activity.hrMax = hr.hrMax;
   store.addActivities([activity], { link: !s && place === undefined });
   if (!s && place !== undefined) store.setPlacement(id, place);
   if (s) {
     store.save(s.id, {
       date: activity.date, duration: activity.moving,
       distance: Math.round(activity.distance / 10) / 100, activityId: id,
+      ...(hr?.hrAvg ? { hrAvg: hr.hrAvg } : {}), ...(hr?.hrMax ? { hrMax: hr.hrMax } : {}),
     });
   }
   discard();
@@ -515,6 +520,7 @@ function paint() {
       <div class="live-fix">
         <div class="field"><span>Durée</span>${durFields('live', Math.round(run.movingMs / 1000))}</div>
         <label class="field"><span>Distance</span><span class="unit-input"><input data-live-dist inputmode="decimal" autocomplete="off" value="${(run.dist / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 2 })}"><em>km</em></span></label>
+        ${hrFields(null, null)}
       </div>
       <button class="btn btn-primary btn-big" data-live-act="save">Enregistrer la sortie</button><button class="btn btn-ghost btn-big" data-live-act="discard">Supprimer</button>`,
   }[run.status];
@@ -576,17 +582,18 @@ export function viewActivity(id) {
     </dl>
     ${a.source === 'gps' || a.source === 'manual' ? `
       <details class="howto edit-run"${a.fixed ? '' : ''}>
-        <summary>Modifier la durée et la distance${a.fixed ? ' · déjà corrigées' : ''}</summary>
+        <summary>Modifier la sortie : durée, distance, cardio</summary>
         <form data-fix-dist="${esc(a.id)}">
           <div class="field"><span>Durée</span>${durFields('fix', a.moving || a.elapsed)}</div>
           <label class="field"><span>Distance</span><span class="unit-input"><input name="km" inputmode="decimal" autocomplete="off" value="${(a.distance / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 2 })}"><em>km</em></span></label>
-          <p class="hint">L’allure est recalculée. Les temps au kilomètre, qui ne correspondraient plus, sont retirés.</p>
+          ${hrFields(a.hrAvg, a.hrMax)}
+          <p class="hint">L’allure est recalculée. Si tu changes la durée ou la distance, les temps au kilomètre sont retirés.</p>
           <div class="form-actions"><button class="btn btn-primary" type="submit">Enregistrer</button></div>
         </form>
       </details>` : ''}
     ${a.rpe || a.note ? `<p class="note">${a.rpe ? `Ressenti ${a.rpe}/10. ` : ''}${esc(a.note || '')}</p>` : ''}
     ${store.plan ? `<form class="placement" data-placement="${esc(a.id)}">${placementField(a.date, a.id)}</form>` : ''}
-    ${a.hrAvg ? `<p class="hint">Fréquence cardiaque moyenne ${Math.round(a.hrAvg)}${a.hrMax ? `, max ${Math.round(a.hrMax)}` : ''}.</p>` : ''}
+    ${hrCard({ hrAvg: a.hrAvg, hrMax: a.hrMax, type: linkedSession(a.id)?.type || null })}
     ${a.splits?.length ? `
       <h2 class="section-title">Temps au kilomètre</h2>
       <ol class="split-list">${a.splits.map((s, i) => `<li><span>Km ${i + 1}</span><span>${clock(s)}</span></li>`).join('')}</ol>` : ''}

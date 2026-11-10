@@ -3,6 +3,7 @@ import { allRuns, allSessions, store } from './store.js';
 import { records } from './ui.js';
 import { addDays, clock, dateShort, dayMonth, daysBetween, esc, parseISO } from './util.js';
 import { hrBlock, easyHrCap, shoesBlock, painBlock } from './extras.js';
+import { easySamples } from './cardio.js';
 
 const W = 340;
 
@@ -227,6 +228,20 @@ export function viewAnalyse(ctx, strava) {
       <p class="legend"><span class="lg-dot"></span>une sortie <span class="lg-band"></span>sous ${hrCap}, zone facile${easyHrCap() ? '' : ' (repère général)'}</p>
     </section>` : ''}
 
+    ${(() => {
+      const es = easySamples().slice(-30);
+      if (es.length < 3) return '';
+      const first = es.slice(0, Math.min(3, Math.floor(es.length / 2))), last = es.slice(-Math.min(3, Math.floor(es.length / 2)));
+      const avg = (xs) => xs.reduce((s, x) => s + x.bpk, 0) / xs.length;
+      const d = Math.round((1 - avg(last) / avg(first)) * 100);
+      return `
+    <section class="analyse-block">
+      <h2 class="section-title">Efficacité du cœur</h2>
+      ${timeChart(es.map((x) => ({ date: x.date, v: x.bpk })), { invert: true, fmt: (v) => Math.round(v), label: 'Battements par kilomètre sur les footings' })}
+      <p class="legend"><span class="lg-dot"></span>un footing <span class="lg-trend"></span>moyenne sur 4</p>
+      <p class="hint">Battements du cœur pour courir un kilomètre, sur tes footings. Plus haut sur le graphique = moins de battements = meilleure endurance. ${d >= 3 ? `Tu as gagné ${d} % : ton endurance progresse.` : d <= -3 ? `En hausse de ${-d} % : fatigue, chaleur ou footings trop rapides.` : 'Stable pour l’instant : la tendance se lit sur plusieurs semaines.'}</p>
+    </section>`;
+    })()}
     ${hrBlock(runs)}
     ${records(runs)}
     ${testsBlock(ctx)}

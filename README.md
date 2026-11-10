@@ -2,6 +2,14 @@
 
 Ton programme de course à pied, séance par séance. Une appli web installable (iPhone et Android), hébergée sur GitHub Pages : https://pixelcatchoff-rgb.github.io/foulee/
 
+## Nouveautés de la version 3.3
+
+- **Cardio saisi à la main** : fréquence cardiaque moyenne et maximum dans le compte rendu d’une séance, une sortie ajoutée, la fin d’une course Foulée ou la modification d’une sortie.
+- **Lecture de chaque séance** : carte Cardio avec la position dans les zones (facile, seuil, intervalles) et un verdict selon le type de séance.
+- **Coach cardio** : footings trop intenses (proposition de ralentir les allures faciles de 15 s/km, réversible), cœur plus haut que d’habitude (alléger la prochaine séance), progrès d’endurance (battements par kilomètre). La FC max est relevée toute seule si une séance la dépasse.
+- **Analyse** : graphique « Efficacité du cœur » ; l’estimation du jour J tient compte du cardio.
+- **Renforcement du coureur** : grande carte sur l’accueil, les footings et l’onglet Courir, avec le suivi 2 fois par semaine.
+
 ## Nouveautés de la version 3.2
 
 - **Aujourd’hui** : la semaine en un coup d’œil (7 jours, séances faites ou à faire), deux avis au maximum, premiers pas en bandeau compact.

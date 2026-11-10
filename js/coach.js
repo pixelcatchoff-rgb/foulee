@@ -683,7 +683,7 @@ export function repace(plan, newVdot, fromDate) {
       if (addDays(wStart, s.day) <= fromDate) return;
       const f = clamp(wi / Math.max(total - 1, 1), 0, 1);
       const Z = zones(lerp(newVdot, c.vdotGoal, f));
-      Z.E = zones(lerp(newVdot, c.vdotGoal, f * 0.5)).E;
+      Z.E = zones(lerp(newVdot, c.vdotGoal, f * 0.5)).E.map((x) => x + (c.easyShift || 0));
       const walk = (steps) => steps.forEach((st) => {
         if (st.k === 'repeat') walk(st.steps);
         else if (st.z && st.z !== 'G' && Z[st.z]) st.pace = Z[st.z];
@@ -692,6 +692,33 @@ export function repace(plan, newVdot, fromDate) {
       if (s.type === 'test' && s.testDist) s.repere = r5(raceTime(lerp(newVdot, c.vdotGoal, f), s.testDist));
     });
   });
-  plan.easyPace = zones(newVdot).E;
+  plan.easyPace = zones(newVdot).E.map((x) => x + (c.easyShift || 0));
   return { old, now: newVdot };
+}
+
+// Cardio : décale les allures faciles des séances à venir (sec > 0 = plus lent). Les allures rapides ne bougent pas.
+export function shiftEasy(plan, sec, fromDate) {
+  const c = plan.coach;
+  if (!c) return null;
+  const before = c.easyShift || 0;
+  const after = clamp(before + sec, 0, 45);
+  const d = after - before;
+  if (!d) return { shift: after, changed: 0 };
+  let changed = 0;
+  plan.weeks.forEach((w) => {
+    const wStart = addDays(plan.start, (w.n - 1) * 7);
+    w.sessions.forEach((s) => {
+      if (addDays(wStart, s.day) < fromDate) return;
+      let hit = false;
+      const walk = (steps) => steps.forEach((st) => {
+        if (st.k === 'repeat') walk(st.steps);
+        else if (st.z === 'E' && Array.isArray(st.pace)) { st.pace = st.pace.map((x) => x + d); hit = true; }
+      });
+      walk(s.steps);
+      if (hit) changed += 1;
+    });
+  });
+  if (plan.easyPace) plan.easyPace = plan.easyPace.map((x) => x + d);
+  c.easyShift = after;
+  return { shift: after, changed };
 }
