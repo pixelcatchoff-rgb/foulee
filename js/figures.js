@@ -1,4 +1,4 @@
-// Schémas des exercices : un bonhomme dessiné au trait, dans la position à tenir.
+// Schémas des exercices : un personnage dessiné en aplats de couleur, dans la position à tenir.
 // Chaque pose donne les articulations (tête, épaules, bassin, coudes, mains, genoux, chevilles, pointes)
 // dans un cadre de 200 × 120, sol à y = 104. Le membre le plus loin de l'œil est dessiné plus clair.
 
@@ -56,25 +56,25 @@ const POSES = {
     props: [['shadow', 100], ['speed', 30, 34], ['speed', 24, 52], ['speed', 34, 70]],
   },
   'Gainage ventral': {
-    h: [154, 66], s: [141, 73], p: [96, 86],
+    f: [0.6, 1], h: [154, 66], s: [141, 73], p: [96, 86],
     a1: [[141, 101], [159, 101]], a2: null,
     l1: [[68, 94], [45, 100], [43, 104]], l2: null,
     props: [['mat', 30, 172], ['guide', 44, 92, 150, 62]],
   },
   'Pont fessier': {
-    h: [40, 96], s: [53, 99], p: [96, 76],
+    f: [0.2, -1], h: [40, 96], s: [53, 99], p: [96, 76],
     a1: [[70, 101], [86, 101]], a2: null,
     l1: [[120, 68], [127, 100], [136, 103]], l2: null,
     props: [['mat', 26, 150], ['arrow', 96, 98, 96, 84]],
   },
   'Gainage latéral': {
-    h: [151, 54], s: [139, 63], p: [92, 83],
+    f: [1, 0.2], h: [151, 54], s: [139, 63], p: [92, 83],
     a1: [[139, 101], [154, 101]], a2: [[122, 58], [106, 70]],
     l1: [[66, 93], [43, 100], [41, 104]], l2: null,
     props: [['mat', 28, 170], ['arrow', 92, 100, 92, 90]],
   },
   Squats: {
-    h: [107, 35], s: [102, 46], p: [88, 75],
+    f: [1, 0.35], h: [107, 35], s: [102, 46], p: [88, 75],
     a1: [[118, 49], [134, 49]], a2: null,
     l1: [[114, 75], [108, 100], [118, 103]], l2: null,
     props: [['arrow', 74, 56, 74, 76]],
@@ -92,7 +92,7 @@ const POSES = {
     props: [['arrow', 56, 78, 38, 78]],
   },
   'Pont sur une jambe': {
-    h: [40, 96], s: [53, 99], p: [96, 76],
+    f: [0.2, -1], h: [40, 96], s: [53, 99], p: [96, 76],
     a1: [[70, 101], [86, 101]], a2: null,
     l1: [[120, 68], [127, 100], [136, 103]], l2: [[119, 65], [142, 54], [149, 50]],
     props: [['mat', 26, 150], ['arrow', 96, 98, 96, 84]],
@@ -122,13 +122,13 @@ const POSES = {
     props: [['zone', 101, 68]],
   },
   'Ischio-jambiers': {
-    h: [125, 36], s: [115, 43], p: [92, 60],
+    f: [1, 0.8], h: [125, 36], s: [115, 43], p: [92, 60],
     a1: [[119, 57], [126, 69]], a2: null,
     l1: [[112, 77], [132, 92], [135, 84]], l2: [[90, 82], [88, 100], [97, 103]],
     props: [['step', 124, 152, 94], ['zone', 104, 76]],
   },
   Fessiers: {
-    h: [44, 96], s: [57, 99], p: [100, 98],
+    f: [0.2, -1], h: [44, 96], s: [57, 99], p: [100, 98],
     a1: [[80, 87], [107, 77]], a2: null,
     l1: [[123, 85], [112, 70], [107, 64]], l2: [[110, 69], [134, 71], [138, 63]],
     props: [['mat', 30, 150], ['zone', 110, 92]],
@@ -140,48 +140,92 @@ const POSES = {
     props: [['mat', 44, 140], ['arrow', 100, 86, 114, 86], ['zone', 92, 80]],
   },
   Respiration: {
-    h: [44, 96], s: [57, 99], p: [100, 99],
+    f: [0.2, -1], h: [44, 96], s: [57, 99], p: [100, 99],
     a1: [[74, 90], [88, 93]], a2: null,
     l1: [[124, 99], [148, 99], [150, 91]], l2: null,
     props: [['mat', 30, 164], ['breath', 84, 80]],
   },
 };
 
-const pt = (p) => `${p[0]},${p[1]}`;
-const line = (pts, cls) => `<polyline class="${cls}" points="${pts.map(pt).join(' ')}"/>`;
+/* ---------- Dessin : personnage en aplats (peau, haut, corsaire, baskets) ---------- */
+
+const C = {
+  skin: '#F0B088', skinFar: '#D9966E', top: '#16A974', topFar: '#11895E',
+  legs: '#2B3654', legsFar: '#465377', shoe: '#E8474C', shoeFar: '#C43A3F', hair: '#4B2E22',
+  mat: '#9CCBF0', ground: '#D3DAE6', prop: '#8A96AB', arrow: '#0B9A64', zone: '#F59E0B',
+};
+
+const seg = (a, b, color, w) => `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${color}" stroke-width="${w}" stroke-linecap="round"/>`;
+const dot = (c, r, color) => `<circle cx="${c[0]}" cy="${c[1]}" r="${r}" fill="${color}"/>`;
+const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
 
 function arrowHead(x1, y1, x2, y2) {
   const a = Math.atan2(y2 - y1, x2 - x1), L = 6;
   const w = (d) => `${(x2 - L * Math.cos(a + d)).toFixed(1)},${(y2 - L * Math.sin(a + d)).toFixed(1)}`;
-  return `<polyline class="fg-arrow" points="${w(0.5)} ${x2},${y2} ${w(-0.5)}"/>`;
+  return `<polyline points="${w(0.5)} ${x2},${y2} ${w(-0.5)}" fill="none" stroke="${C.arrow}" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>`;
 }
 
 function prop(p) {
   const [k, a, b, c, d, e, f] = p;
-  if (k === 'wall') return `<line class="fg-prop" x1="${a}" y1="8" x2="${a}" y2="${G}"/><path class="fg-hatch" d="M${a} 20l8 -8M${a} 40l8 -8M${a} 60l8 -8M${a} 80l8 -8M${a} 100l8 -8"/>`;
-  if (k === 'step') return `<path class="fg-prop" d="M${a} ${G}V${c}H${b}"/><path class="fg-fill" d="M${a} ${G}V${c}H${b}V${G}z"/>`;
-  if (k === 'mat') return `<line class="fg-mat" x1="${a}" y1="${G + 1.5}" x2="${b}" y2="${G + 1.5}"/>`;
-  if (k === 'shadow') return `<ellipse class="fg-fill" cx="${a}" cy="${G}" rx="22" ry="3"/>`;
-  if (k === 'arrow') return `<line class="fg-arrow" x1="${a}" y1="${b}" x2="${c}" y2="${d}"/>${arrowHead(a, b, c, d)}`;
-  if (k === 'arc') return `<path class="fg-arrow" d="M${a} ${b}Q${c} ${d} ${e} ${f}"/>${arrowHead(c, d, e, f)}${arrowHead(c, d, a, b)}`;
-  if (k === 'speed') return `<line class="fg-speed" x1="${a}" y1="${b}" x2="${a + 26}" y2="${b}"/>`;
-  if (k === 'guide') return `<line class="fg-guide" x1="${a}" y1="${b}" x2="${c}" y2="${d}"/>`;
-  if (k === 'zone') return `<circle class="fg-zone" cx="${a}" cy="${b}" r="9"/>`;
-  if (k === 'breath') return `<path class="fg-arrow" d="M${a} ${b}v-12M${a + 12} ${b + 2}v-10M${a - 12} ${b + 2}v-10"/>`;
+  const arrowStyle = `fill="none" stroke="${C.arrow}" stroke-width="2.8" stroke-linecap="round"`;
+  if (k === 'wall') return `<rect x="${a}" y="6" width="9" height="${G - 6}" rx="2" fill="#DDE3EC"/><line x1="${a}" y1="6" x2="${a}" y2="${G}" stroke="${C.prop}" stroke-width="2"/>`;
+  if (k === 'step') return `<path d="M${a} ${G}V${c + 3}a3 3 0 0 1 3 -3H${b - 3}a3 3 0 0 1 3 3V${G}z" fill="#C9D2E0"/><line x1="${a + 1}" y1="${c}" x2="${b - 1}" y2="${c}" stroke="${C.prop}" stroke-width="2.4" stroke-linecap="round"/>`;
+  if (k === 'mat') return `<polygon points="${a + 9},${G - 3} ${b - 9},${G - 3} ${b},${G + 5} ${a},${G + 5}" fill="${C.mat}"/>`;
+  if (k === 'shadow') return `<ellipse cx="${a}" cy="${G}" rx="24" ry="3.2" fill="#C9D2E0"/>`;
+  if (k === 'arrow') return `<line x1="${a}" y1="${b}" x2="${c}" y2="${d}" ${arrowStyle}/>${arrowHead(a, b, c, d)}`;
+  if (k === 'arc') return `<path d="M${a} ${b}Q${c} ${d} ${e} ${f}" ${arrowStyle}/>${arrowHead(c, d, e, f)}${arrowHead(c, d, a, b)}`;
+  if (k === 'speed') return `<line x1="${a}" y1="${b}" x2="${a + 26}" y2="${b}" stroke="${C.prop}" stroke-width="2.6" stroke-linecap="round" opacity=".55"/>`;
+  if (k === 'guide') return `<line x1="${a}" y1="${b}" x2="${c}" y2="${d}" stroke="${C.arrow}" stroke-width="2" stroke-dasharray="3 5" stroke-linecap="round"/>`;
+  if (k === 'zone') return `<circle cx="${a}" cy="${b}" r="10" fill="${C.zone}" opacity=".3"/><circle cx="${a}" cy="${b}" r="10" fill="none" stroke="${C.zone}" stroke-width="1.6" stroke-dasharray="2.5 3.5"/>`;
+  if (k === 'breath') return `<path d="M${a} ${b}v-12M${a + 12} ${b + 2}v-10M${a - 12} ${b + 2}v-10" ${arrowStyle}/>`;
   return '';
 }
 
+function leg(root, parts, far) {
+  if (!parts) return '';
+  const [knee, ankle, toe] = parts;
+  const calf = mix(knee, ankle, 0.22); // le corsaire descend un peu sous le genou
+  return seg(knee, ankle, far ? C.skinFar : C.skin, 7.6)
+    + seg(root, knee, far ? C.legsFar : C.legs, 11.5)
+    + seg(knee, calf, far ? C.legsFar : C.legs, 9.4)
+    + seg(ankle, toe, far ? C.shoeFar : C.shoe, 6.6)
+    + dot(ankle, 3.9, far ? C.shoeFar : C.shoe);
+}
+
+function arm(root, parts, far) {
+  if (!parts) return '';
+  const [elbow, hand] = parts;
+  const skin = far ? C.skinFar : C.skin;
+  return seg(root, elbow, skin, 7) + seg(elbow, hand, skin, 6) + dot(hand, 3.6, skin);
+}
+
+function head(P) {
+  // Direction du visage : la chevelure couvre l'arrière du crâne, une queue de cheval part à l'opposé
+  const f = P.f || (P.front ? [0, 1] : [1, 0.25]);
+  const n = Math.hypot(f[0], f[1]) || 1;
+  const u = [f[0] / n, f[1] / n];
+  const h = P.h;
+  const face = [h[0] + u[0] * 2.4, h[1] + u[1] * 2.4];
+  const tail = P.front ? '' : seg([h[0] - u[0] * 6.5, h[1] - u[1] * 6.5 - 1], [h[0] - u[0] * 13 + u[1] * 3, h[1] - u[1] * 13 + Math.abs(u[0]) * 6], C.hair, 4.4);
+  return `${tail}${dot(h, 8.2, C.hair)}${dot(face, 6.6, C.skin)}`;
+}
+
 function draw(P) {
-  const neck = [P.s[0] + (P.h[0] - P.s[0]) * 0.35, P.s[1] + (P.h[1] - P.s[1]) * 0.35];
-  const limb = (root, parts, cls) => (parts ? line([root, ...parts], cls) : '');
+  const neck = mix(P.s, P.h, 0.45);
+  const waist = mix(P.s, P.p, 0.74);
+  const back = (P.props || []).filter((p) => !['arrow', 'arc', 'breath', 'guide', 'zone'].includes(p[0]));
+  const front = (P.props || []).filter((p) => ['arrow', 'arc', 'breath', 'guide', 'zone'].includes(p[0]));
+  const hasMat = back.some((p) => p[0] === 'mat');
   return `
-    ${(P.props || []).filter((p) => p[0] !== 'arrow' && p[0] !== 'arc' && p[0] !== 'breath').map(prop).join('')}
-    <line class="fg-ground" x1="14" y1="${G}" x2="186" y2="${G}"/>
-    ${limb(P.p, P.l2, 'fg-far')}${limb(P.s, P.a2, 'fg-far')}
-    ${line([neck, P.s, P.p], 'fg-body')}
-    ${limb(P.p, P.l1, 'fg-near')}${limb(P.s, P.a1, 'fg-near')}
-    <circle class="fg-head" cx="${P.h[0]}" cy="${P.h[1]}" r="7.5"/>
-    ${(P.props || []).filter((p) => p[0] === 'arrow' || p[0] === 'arc' || p[0] === 'breath').map(prop).join('')}`;
+    ${hasMat ? '' : `<line x1="16" y1="${G + 1}" x2="184" y2="${G + 1}" stroke="${C.ground}" stroke-width="2.4" stroke-linecap="round"/>`}
+    ${back.map(prop).join('')}
+    ${leg(P.p, P.l2, true)}${arm(P.s, P.a2, true)}
+    ${seg(P.s, neck, C.skin, 5.6)}
+    ${seg(P.s, waist, C.top, 15)}${seg(waist, P.p, C.legs, 14.6)}
+    ${leg(P.p, P.l1, false)}
+    ${head(P)}
+    ${arm(P.s, P.a1, false)}
+    ${front.map(prop).join('')}`;
 }
 
 // Nom d'exercice → pose. « …, côté gauche » et « … gauche » donnent la figure en miroir.
