@@ -1,6 +1,7 @@
 // Routines guidées à la voix : échauffement dynamique, renforcement, retour au calme.
 import { store } from './store.js';
 import { esc, todayISO, parseISO, addDays } from './util.js';
+import { figure, hasFigure } from './figures.js';
 
 const ex = (name, dur, how, side) => ({ name, dur, how, side });
 const rest = (dur = 15) => ({ name: 'Récupération', dur, how: 'Souffle, prépare l’exercice suivant.', rest: true });
@@ -172,6 +173,11 @@ function paint() {
     card.innerHTML = `
       ${p.rounds > 1 || cur.round > 1 ? `<span class="rt-round">Tour ${cur.round}</span>` : ''}
       <span class="rt-name">${esc(cur.name)}</span>
+      ${(() => {
+        // Pendant une récupération, on montre déjà la position de l'exercice suivant
+        const shown = cur.rest ? next : cur;
+        return shown && hasFigure(shown.name) ? `<span class="rt-fig">${cur.rest ? `<span class="rt-fig-cap">À venir : ${esc(shown.name)}</span>` : ''}${figure(shown.name)}</span>` : '';
+      })()}
       <span class="rt-time">${Math.floor(p.left / 60)}:${String(p.left % 60).padStart(2, '0')}</span>
       <span class="rt-how">${esc(cur.how)}</span>
       ${next ? `<span class="rt-next">Ensuite : ${esc(next.name)}</span>` : ''}
@@ -190,7 +196,7 @@ function paint() {
   }
   p.root.querySelector('[data-rt-list]').innerHTML = p.list.filter((x) => !x.rest).map((x) => {
     const idx = p.list.indexOf(x);
-    return `<li class="${idx < p.i || p.done ? 'is-done' : idx === p.i ? 'is-now' : ''}"><span>${esc(x.name)}</span><span class="rt-dur">${x.dur} s</span></li>`;
+    return `<li class="${idx < p.i || p.done ? 'is-done' : idx === p.i ? 'is-now' : ''}"><span class="rt-thumb">${figure(x.name)}</span><span>${esc(x.name)}</span><span class="rt-dur">${x.dur} s</span></li>`;
   }).join('');
 }
 

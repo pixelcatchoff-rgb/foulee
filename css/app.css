@@ -1279,3 +1279,31 @@ body.run-on .live-map { height: 30vh; }
 .kind-field .segmented span { white-space: normal; text-align: center; line-height: 1.2; padding: 8px 6px; }
 .shift-note { margin: 10px 0 0; padding: 10px 12px; border-radius: var(--radius-s); border: 1px solid var(--quality); font-size: 14px; }
 .shift-note .linkish { display: block; margin-top: 4px; font-weight: 600; }
+
+/* =========================================================
+   Schémas des exercices
+   ========================================================= */
+.fig { display: block; width: 100%; height: auto; }
+.fig * { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.fg-body { stroke: var(--ink); stroke-width: 7.5; }
+.fg-near { stroke: var(--ink); stroke-width: 6; }
+.fg-far { stroke: var(--ink-soft); stroke-width: 5.5; opacity: .75; }
+.fig .fg-head { fill: var(--ink); stroke: none; }
+.fg-ground { stroke: var(--line); stroke-width: 2; }
+.fg-prop { stroke: var(--ink-soft); stroke-width: 2.5; }
+.fg-hatch { stroke: var(--line); stroke-width: 2; }
+.fig .fg-fill { fill: var(--line); stroke: none; opacity: .6; }
+.fg-mat { stroke: var(--long); stroke-width: 3.5; opacity: .7; }
+.fg-arrow { stroke: var(--easy); stroke-width: 2.6; }
+.fg-speed { stroke: var(--ink-soft); stroke-width: 2.5; opacity: .5; }
+.fg-guide { stroke: var(--easy); stroke-width: 1.8; stroke-dasharray: 3 5; }
+.fig .fg-zone { fill: var(--quality); stroke: none; opacity: .32; }
+
+.rt-fig { margin: 2px 0 6px; padding: 6px 10px; border-radius: 14px; background: var(--bg-2); border: 1px solid var(--line); }
+.rt-fig .fig { max-height: 190px; margin: 0 auto; }
+.rt-fig-cap { display: block; text-align: center; font: 600 11px/1 var(--font-cond); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); padding: 2px 0 6px; }
+.rt-list li { align-items: center; }
+.rt-thumb { flex: none; width: 58px; height: 34px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--line); padding: 1px 3px; margin-right: -4px; }
+.rt-thumb .fig { height: 100%; }
+.rt-list li > span:nth-child(2) { flex: 1; }
+.rt-list li.is-done .rt-thumb { opacity: .5; }

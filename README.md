@@ -2,6 +2,10 @@
 
 Ton programme de course à pied, séance par séance. Une appli web installable (iPhone et Android), hébergée sur GitHub Pages : https://pixelcatchoff-rgb.github.io/foulee/
 
+## Nouveautés de la version 3.4
+
+- **Schémas des exercices** : chaque exercice des routines (échauffement, renforcement, retour au calme) a son bonhomme dessiné dans la bonne position, avec le sens du mouvement ou la zone étirée. Pendant une récupération, la position de l’exercice suivant est déjà affichée.
+
 ## Nouveautés de la version 3.3
 
 - **Cardio saisi à la main** : fréquence cardiaque moyenne et maximum dans le compte rendu d’une séance, une sortie ajoutée, la fin d’une course Foulée ou la modification d’une sortie.
