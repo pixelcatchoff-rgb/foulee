@@ -189,7 +189,8 @@ function viewToday() {
         : `${ctx.missed.length} séances passées ne sont pas cochées. Coche-les si tu les as faites, sinon passe simplement à la suivante.`}
     </a>` : '';
 
-  const upcoming = ctx.sessions.filter((x) => x.date >= ctx.t && x !== s).slice(0, 3);
+  // « Ensuite » : uniquement les séances encore à faire (celle du jour, une fois cochée, n’y figure plus)
+  const upcoming = ctx.sessions.filter((x) => x.date >= ctx.t && x !== s && !ctx.done(x)).slice(0, 3);
   // Footings notés trop durs : le signe classique d'un entraînement trop rapide
   const easyLogged = ctx.sessions.filter((x) => (x.type === 'facile' || x.type === 'longue') && store.entry(x.id)?.rpe).slice(-3);
   const tooHard = easyLogged.length === 3 && easyLogged.every((x) => store.entry(x.id).rpe >= 7);
